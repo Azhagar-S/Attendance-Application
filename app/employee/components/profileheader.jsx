@@ -90,6 +90,15 @@ export function DailyAttendance({
   const [attendanceType, setAttendanceType] = useState(""); // "check-in" or "check-out"
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoadingAttendance, setIsLoadingAttendance] = useState(true);
+  const [attendanceSettings, setAttendanceSettings] = useState({
+    workingHours: "09:00",
+    earlyCheckInAllowed: 30,
+    lateCheckInAllowed: 30,
+    checkInStartTime: "08:30",
+    checkInEndTime: "10:00",
+    checkOutStartTime: "17:00",
+    checkOutEndTime: "18:30"
+  });
 
   const [sampleData, setSampleData] = useState(null);
 
@@ -98,6 +107,50 @@ export function DailyAttendance({
     checkOutTime: null,
     status: null  
   });
+
+  // Fetch attendance settings
+  useEffect(() => {
+    const fetchAttendanceSettings = async () => {
+      if (!user?.phoneNumber) return;
+      
+      try {
+        const phoneNumber = user.phoneNumber.slice(3);
+        const usersRef = collection(db, "users");
+        const userQuery = query(usersRef, where("phone", "==", phoneNumber));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (userSnapshot.empty) return;
+        
+        const userData = userSnapshot.docs[0].data();
+        const adminUid = userData.adminuid;
+
+        // Fetch daily attendance settings
+        const dailySettingsRef = collection(db, "Daily_attendance");
+        const dailySettingsQuery = query(
+          dailySettingsRef,
+          where("adminUid", "==", adminUid)
+        );
+        const dailySettingsSnapshot = await getDocs(dailySettingsQuery);
+
+        if (!dailySettingsSnapshot.empty) {
+          const settings = dailySettingsSnapshot.docs[0].data();
+          setAttendanceSettings({
+            workingHours: settings.workingHours || "09:00",
+            earlyCheckInAllowed: settings.earlyCheckInAllowed || 30,
+            lateCheckInAllowed: settings.lateCheckInAllowed || 30,
+            checkInStartTime: settings.checkInStartTime || "08:30",
+            checkInEndTime: settings.checkInEndTime || "10:00",
+            checkOutStartTime: settings.checkOutStartTime || "17:00",
+            checkOutEndTime: settings.checkOutEndTime || "18:30"
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching attendance settings:", error);
+      }
+    };
+
+    fetchAttendanceSettings();
+  }, [user]);
 
   // Fetch attendance status on component mount
   useEffect(() => {
@@ -226,23 +279,23 @@ export function DailyAttendance({
   };
 
   const isLateCheckIn = (time) => {
-    const shiftStart = parse("10:00", "HH:mm", new Date());
+    const checkInEndTime = parse(attendanceSettings.checkInEndTime, "HH:mm", new Date());
     const actualCheckIn = parse(time, "hh:mm a", new Date());
+    const diff = differenceInMinutes(actualCheckIn, checkInEndTime);
+    return diff > attendanceSettings.lateCheckInAllowed;
+  };
 
-    const diff = differenceInMinutes(actualCheckIn, shiftStart);
-    return diff > 30;
+  const isEarlyCheckIn = (time) => {
+    const checkInStartTime = parse(attendanceSettings.checkInStartTime, "HH:mm", new Date());
+    const actualCheckIn = parse(time, "hh:mm a", new Date());
+    const diff = differenceInMinutes(checkInStartTime, actualCheckIn);
+    return diff > attendanceSettings.earlyCheckInAllowed;
   };
 
   const isAbsent = (time) => {
-    const shiftStart = parse("12:00", "HH:mm", new Date());
-    const currentTime = new Date().getHours();
-    
-    if(currentTime > shiftStart){
-      return true;
-    }
-    return false;
-    
-    
+    const checkInEndTime = parse(attendanceSettings.checkInEndTime, "HH:mm", new Date());
+    const currentTime = parse(time, "hh:mm a", new Date());
+    return currentTime > checkInEndTime;
   };
 
 
@@ -262,6 +315,7 @@ export function DailyAttendance({
       const nowTime = format(new Date(), "hh:mm a");
 
       const isLate = isLateCheckIn(nowTime);
+      const isEarly = isEarlyCheckIn(nowTime);
 
       // Query the users collection to find the user document
       const usersRef = collection(db, "users");
@@ -277,9 +331,14 @@ export function DailyAttendance({
       const userData = userDoc.data();
 
 
-      let status = isLate ? "late" : "present";
-
-      if(isAbsent(nowTime)){
+      let status = "present";
+      if (isLate) {
+        status = "late";
+      } else if (isEarly) {
+        status = "early";
+      }
+      
+      if (isAbsent(nowTime)) {
         status = "absent";
       }
       
@@ -297,7 +356,10 @@ export function DailyAttendance({
         location: currentLocation || "Office Geo",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        purpose: "Checked in"
+        purpose: "Checked in",
+        workingHours: attendanceSettings.workingHours,
+        earlyCheckIn: isEarly,
+        lateCheckIn: isLate
       };
 
       // Save the new attendance record
@@ -308,7 +370,8 @@ export function DailyAttendance({
 
       setIsCheckedIn(true);
       onMarkSuccess("Checked In");
-      sonnerToast.success("Checked In Successfully!", {
+      const statusMessage = isEarly ? "Early" : isLate ? "Late" : "On time";
+      sonnerToast.success(`Checked In Successfully! (${statusMessage})`, {
         description: `Time: ${nowTime}, Location: ${currentLocation || 'Office Geo'}`,
       });
     } catch (error) {

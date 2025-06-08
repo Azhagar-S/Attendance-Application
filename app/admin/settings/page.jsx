@@ -57,13 +57,15 @@ export default function AdminSettingsPage() {
     attendees: []
   });
 
-  const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
+  const [showAddMeetingModal, setShowAddMeetingModal] = useState(true);
+  const [showAddDailyAttendanceModal, setShowAddDailyAttendanceModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [user, setUser] = useState(null);
   const [Admin___Uid, setAdminuid] = useState("");
   const [recentMeetings, setRecentMeetings] = useState([]);
+  const [currentMethod, setCurrentMethod] = useState("");
 
   // Mock employee data - replace with your actual employee data
   const [employees , setEmployees] = useState([]);
@@ -85,8 +87,9 @@ export default function AdminSettingsPage() {
         if (querySnap) {
           const userData = querySnap.docs[0].data();
           const adminuid = userData.uid;
-        
-          if (userData.tracingMethod == "Schedule Meetings") {
+          setCurrentMethod(userData.tracingMethod || "Daily Attendance");
+          
+          if (userData.tracingMethod === "Schedule Meetings") {
             setShowAddMeetingModal(true);
           }
           fetchMeetingsData(adminuid);
@@ -261,14 +264,61 @@ export default function AdminSettingsPage() {
     }));
   };
 
-  const handleSaveDailySettings = () => {
-    // TODO: Firebase logic to save dailySettings
+  const handleSaveDailySettings = async () => {
+    try {
+      const phone = user?.phoneNumber?.slice(3);
+      if (!phone) {
+        throw new Error("User phone number not available");
+      }
 
-    console.log("Saving Daily Attendance Settings:", dailySettings);
-    toast.success("Settings Saved", {
-      description: "Daily attendance settings have been updated.",
-      position: "top-right",
-    });
+      // Get admin UID
+      const q = query(collection(db, "users"), where("phone", "==", phone));
+      const querySnap = await getDocs(q);
+      
+      if (querySnap.empty) {
+        throw new Error("User not found");
+      }
+
+      const adminDoc = querySnap.docs[0];
+      const adminUid = adminDoc.id;
+
+      // Create a new document in Daily_attendance collection
+      const dailyAttendanceRef = doc(collection(db, "Daily_attendance"));
+      
+      const dailyAttendanceData = {
+        adminUid: adminUid,
+        workingDays: dailySettings.workingDays,
+        defaultStartTime: dailySettings.defaultStartTime,
+        defaultEndTime: dailySettings.defaultEndTime,
+        workingHours: dailySettings.workingHours,
+        earlyCheckInAllowed: Number(dailySettings.earlyCheckInAllowed),
+        lateCheckOutAllowed: Number(dailySettings.lateCheckOutAllowed),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: "active",
+        settingsId: dailyAttendanceRef.id
+      };
+
+      // Save to Firebase
+      await setDoc(dailyAttendanceRef, dailyAttendanceData);
+
+      // Update user's tracing method
+      await setDoc(doc(db, "users", adminUid), {
+        tracingMethod: "Daily Attendance"
+      }, { merge: true });
+
+      toast.success("Settings Saved", {
+        description: "Daily attendance settings have been updated successfully.",
+        position: "top-right",
+      });
+
+    } catch (error) {
+      console.error("Error saving daily settings:", error);
+      toast.error("Error", {
+        description: error.message || "Failed to save daily attendance settings",
+        position: "top-right"
+      });
+    }
   };
 
   const handleSaveMeetingSettings = async () => {
@@ -357,33 +407,29 @@ export default function AdminSettingsPage() {
           </p>
         </div>
 
-        {showAddMeetingModal ? 
-          <div>
-            <Button onClick={() => setShowAddMeetingModal(false)}>
+        <div className="flex items-center gap-4">
+          {showAddMeetingModal ? (
+            <Button onClick={() => setShowAddDailyAttendanceModal(true)}>
               Request To Add Daily Attendance
             </Button>
-          </div>
-        :
-        <div>
-          <Button onClick={() => setShowAddMeetingModal(true)}>
-            Request To Add Schedule Meetings
-          </Button>
+          ) : (
+            <Button onClick={() => setShowAddMeetingModal(true)}>
+              Request To Add Schedule Meetings
+            </Button>
+          )}
         </div>
-        }
       </div>
 
       <Tabs
-        defaultValue={
-          showAddMeetingModal ? "dailyAttendance" : "scheduleMeetings"
-        }
+        defaultValue={showAddMeetingModal ? "scheduleMeetings" : "dailyAttendance"}
         className="w-full"
       >
         <TabsList
           className={`grid w-full ${
-            showAddMeetingModal ? "grid-cols-1" : "grid-cols-1"
+            (showAddMeetingModal && showAddDailyAttendanceModal) ? "grid-cols-2" : "grid-cols-1"
           }`}
         >
-          {!showAddMeetingModal && (
+          {showAddDailyAttendanceModal && (
             <TabsTrigger value="dailyAttendance">
               <CalendarIconSettings className="mr-2 h-4 w-4" /> Daily Attendance
               Settings
@@ -397,7 +443,7 @@ export default function AdminSettingsPage() {
         </TabsList>
 
         {/* Daily Attendance Settings Tab */}
-        {!showAddMeetingModal && (
+        {showAddDailyAttendanceModal && (
           <TabsContent value="dailyAttendance">
             <CardSettings>
               <CardHeaderSettings>
@@ -410,9 +456,28 @@ export default function AdminSettingsPage() {
               </CardHeaderSettings>
               <CardContentSettings className="space-y-6 pt-6">
                 <fieldset className="space-y-2">
-                  <LabelSettings className="text-base font-medium">
-                    Working Days & Times
-                  </LabelSettings>
+                  <div className="flex justify-between items-center">
+                    <LabelSettings className="text-base font-medium">
+                      Working Days & Times
+                    </LabelSettings>
+                    <ButtonSettings
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const allChecked = Object.values(dailySettings.workingDays).every(day => day);
+                        const newWorkingDays = {};
+                        weekDays.forEach(day => {
+                          newWorkingDays[day.id] = !allChecked;
+                        });
+                        setDailySettings(prev => ({
+                          ...prev,
+                          workingDays: newWorkingDays
+                        }));
+                      }}
+                    >
+                      {Object.values(dailySettings.workingDays).every(day => day) ? 'Unselect All' : 'Select All'}
+                    </ButtonSettings>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-4 border rounded-md">
                     {weekDays.map((day) => (
                       <div key={day.id} className="flex items-center space-x-2">
@@ -623,101 +688,22 @@ export default function AdminSettingsPage() {
                                   className={`px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center ${isAlreadySelected ? 'bg-green-50 text-green-700' : ''}`}
                                   onClick={() => handleEmployeeSelect(employee)}
                                 >
-                                  <div className="flex-1">
-                                    <div className="font-medium flex items-center">
-                                      {employee.name}
-                                      {isAlreadySelected && (
-                                        <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">
-                                          Added
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {employee.email}
-                                    </div>
-                                  </div>
+                                  {employee.name}
                                 </div>
                               );
                             })
-                          ) : searchTerm ? (
-                            <div className="px-4 py-2 text-gray-500">
-                              No employees found matching "{searchTerm}"
-                            </div>
                           ) : (
-                            <div className="px-4 py-2 text-gray-500">
-                              No employees available
-                            </div>
+                            <div className="px-4 py-2 text-gray-500">No employees found</div>
                           )}
                         </div>
                       )}
                     </div>
-                    {/* Selected attendees */}
-                    {meetingSettings.attendees?.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <div className="text-sm font-medium text-gray-700 flex items-center">
-                          Selected Attendees ({meetingSettings.attendees.length}):
-                        </div>
-                        <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                          {meetingSettings.attendees.map((attendee) => (
-                            <div
-                              key={attendee.id}
-                              className="flex items-center bg-gray-100 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                            >
-                              <span className="truncate max-w-32">
-                                {attendee.name}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => removeAttendee(attendee.id)}
-                                className="ml-2 text-gray-500 hover:text-red-500 flex-shrink-0"
-                                title={`Remove ${attendee.name}`}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <LabelSettings htmlFor="earlyCheckInAllowedMeetings">
-                      Early Check-in Allowance (minutes)
-                    </LabelSettings>
-                    <InputSettings
-                      id="earlyCheckInAllowedMeetings"
-                      name="earlyCheckInAllowed"
-                      type="text"
-                      value={meetingSettings.earlyCheckInAllowed}
-                      onChange={handleMeetingSettingChange}
-                    />
                   </div>
                 </div>
                 <div className="flex justify-end pt-4">
                   <ButtonSettings onClick={handleSaveMeetingSettings}>
                     <Save className="mr-2 h-4 w-4" /> Save Meeting Settings
                   </ButtonSettings>
-                </div>
-
-                <div className="pt-6">
-                  <h3 className="text-lg font-medium mb-2">
-                    Recent Meetings Details (View)
-                  </h3>
-                  <CardSettings className="border-dashed">
-                    <CardContentSettings className="p-6 text-center">
-                      <div className="mt-4 text-left text-xs space-y-1">
-                        {recentMeetings.map((m , index) => (
-                          <div
-                            key={m.id}
-                            className="p-2 border rounded bg-slate-50"
-                          >
-                            <strong>{m.meetingTitle}</strong> - {m.meetingDate} @ {m.meetingDuration} (
-                            {m.attendees.length} attendees)
-                          </div>
-                        ))}
-                      </div>
-                    </CardContentSettings>
-                  </CardSettings>
                 </div>
               </CardContentSettings>
             </CardSettings>

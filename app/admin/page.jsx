@@ -36,8 +36,15 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { collection, query, where, getDocs, doc } from "firebase/firestore";
 import { auth, db } from "@/app/firebase/config";
-
-import { DatePickerWithRange } from "@/components/ui/datepicker-with-range"; // Assuming you create/add this
+import { Progress } from "@/components/ui/progress";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 // Icons from Lucide React
 import {
@@ -172,6 +179,8 @@ function DatePickerWithRangeClient({ className, date, setDate }) {
     </div>
   );
 }
+
+
 
 export default function AdminDashboardPage() {
   const [dumAttendance, setDumAttendance] = useState([]);
@@ -459,144 +468,39 @@ export default function AdminDashboardPage() {
     { id: 4, type: "check_in", name: "Alice Brown", time: "4 hours ago" },
   ];
 
-  // // Summary Stats
-  // const presentCount = filteredRecords.filter(r => r.status === 'Present').length;
-  // const lateCount = filteredRecords.filter(r => r.status === 'Late').length;
-  // const absentCount = filteredRecords.filter(r => r.status === 'Absent').length;
+  // Calculate percentages for each status
+  const totalCount = present_count + late_count + absent_count + onleave_count;
+  const presentPercentage = (present_count / totalCount) * 100 || 0;
+  const latePercentage = (late_count / totalCount) * 100 || 0;
+  const absentPercentage = (absent_count / totalCount) * 100 || 0;
+  const onLeavePercentage = (onleave_count / totalCount) * 100 || 0;
+
+  // Prepare data for the chart
+  const chartData = [
+    {
+      name: "Present",
+      value: present_count,
+      color: "hsl(var(--primary))",
+    },
+    {
+      name: "Late",
+      value: late_count,
+      color: "hsl(var(--warning))",
+    },
+    {
+      name: "Absent",
+      value: absent_count,
+      color: "hsl(var(--destructive))",
+    },
+    {
+      name: "On Leave",
+      value: onleave_count,
+      color: "hsl(var(--info))",
+    },
+  ];
 
   return (
-    <div className="space-y-6 ">
-      {/* <main className="flex-1 p-4 sm:p-6"> */}
-      {/* <div className="space-y-6"> */}
-      {/* Stats Overview */}
-      {/* <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalEmployees}</div>
-                  <p className="text-xs text-muted-foreground">Total employees in your organization</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Present Today</CardTitle>
-                  <UserCheck className="h-4 w-4 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.presentToday} <span className="text-sm text-muted-foreground">/ {stats.totalEmployees}</span></div>
-                    
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">On Leave</CardTitle>
-                  <UserX className="h-4 w-4 text-amber-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.onLeave}</div>
-                  
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Late Today</CardTitle>
-                  <Clock3 className="h-4 w-4 text-rose-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.lateToday}</div>
-                  
-                </CardContent>
-              </Card>
-              
-            </div> */}
-
-      {/* <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7"> */}
-      {/* Today's Attendance */}
-      {/* <Card className="col-span-4">
-                <CardHeader>
-                  <CardTitle>Today's Attendance</CardTitle>
-                  <CardDescription>Check-in and check-out status of employees for today.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 font-medium">Employee</div>
-                      <div className="w-24 text-center font-medium">Status</div>
-                      <div className="w-24 text-center font-medium">Check In</div>
-                      {!scheduleMeetings && (
-                        <div className="w-24 text-center font-medium">Check Out</div>
-                      )}
-                    </div>
-                    {filteredRecords.map((employee ,index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex-1 font-medium">{employee.name}</div>
-                        <div className="w-24 text-center">
-                          <Badge 
-                            variant={Array.isArray(employee.status) 
-                              ? (employee.status[0] === 'present' ? 'default' 
-                                : employee.status[0] === 'late' ? 'warning' 
-                                : employee.status[0] === 'absent' ? 'destructive' 
-                                : 'secondary')
-                              : (employee.status === 'present' ? 'default' 
-                                : employee.status === 'late' ? 'warning' 
-                                : employee.status === 'absent' ? 'destructive' 
-                                : 'secondary')}
-                            className="capitalize"
-                          >
-                            {Array.isArray(employee.status) 
-                              ? employee.status[0].replace('_', ' ')
-                              : employee.status.replace('_', ' ')}
-                          </Badge>
-                        </div>
-                        <div className="w-24 text-center text-sm text-muted-foreground">{employee.checkIn}</div>
-                        {!scheduleMeetings && (
-                          <div className="w-24 text-center text-sm text-muted-foreground">{employee.checkOut}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card> */}
-
-      {/* Recent Activity */}
-      {/* <Card className="col-span-3">
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest activities in the system.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentActivities.map((activity) => (
-                      <div key={activity.id} className="flex items-start gap-4">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50">
-                          {activity.type === 'check_in' && <Clock3 className="h-4 w-4 text-sky-600" />}
-                          {activity.type === 'check_out' && <LogOut className="h-4 w-4 text-sky-600" />}
-                          {activity.type === 'leave_approved' && <CheckCircle className="h-4 w-4 text-green-600" />}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            {activity.name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {activity.type === 'check_in' && 'Checked in'}
-                            {activity.type === 'check_out' && 'Checked out'}
-                            {activity.type === 'leave_approved' && 'Leave request approved'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{activity.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card> */}
-      {/* </div>   */}
-      {/* </div> */}
-
-      {/* </main> */}
-
+    <div className="space-y-6">
       <section className="mx-5 flex flex-col gap-4 mt-5">
         <div>
           <h1 className="text-2xl font-semibold">
@@ -607,62 +511,124 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Employees
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+        {/* Summary Cards and Chart Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {/* Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 col-span-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total Employees
+                </CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalEmployees}</div>
+                <p className="text-xs text-muted-foreground">
+                  Total employees in your organization
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Present Today/Range
+                </CardTitle>
+                <UserCheck className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{present_count}</div>
+                <p className="text-xs text-muted-foreground">
+                  Employees marked present
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Late Today/Range
+                </CardTitle>
+                <Clock className="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{late_count}</div>
+                <p className="text-xs text-muted-foreground">
+                  Employees marked late
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Absent Today/Range
+                </CardTitle>
+                <UserX className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{absent_count}</div>
+                <p className="text-xs text-muted-foreground">
+                  Employees marked absent
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Attendance Overview Card */}
+          <Card className="col-span-3 lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Attendance Overview</CardTitle>
+              <CardDescription>Today's attendance distribution</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalEmployees}</div>
-              <p className="text-xs text-muted-foreground">
-                Total employees in your organization
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Present Today/Range
-              </CardTitle>
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{present_count}</div>
-              <p className="text-xs text-muted-foreground">
-                Employees marked present
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Late Today/Range
-              </CardTitle>
-              <Clock className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{late_count}</div>
-              <p className="text-xs text-muted-foreground">
-                Employees marked late
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Absent Today/Range
-              </CardTitle>
-              <UserX className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{absent_count}</div>
-              <p className="text-xs text-muted-foreground">
-                Employees marked absent
-              </p>
+            <CardContent className="space-y-4">
+              <ChartContainer
+                config={{
+                  present: {
+                    label: "Present",
+                    color: "hsl(var(--primary))",
+                  },
+                  late: {
+                    label: "Late",
+                    color: "hsl(var(--warning))",
+                  },
+                  absent: {
+                    label: "Absent",
+                    color: "hsl(var(--destructive))",
+                  },
+                  onLeave: {
+                    label: "On Leave",
+                    color: "hsl(var(--info))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value, name) => [
+                          value,
+                          name.charAt(0).toUpperCase() + name.slice(1),
+                        ]}
+                      />
+                    }
+                  />
+                  <ChartLegend
+                    content={
+                      <ChartLegendContent
+                        verticalAlign="bottom"
+                      />
+                    }
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill="currentColor"
+                    className="fill-primary"
+                  />
+                </BarChart>
+              </ChartContainer>
             </CardContent>
           </Card>
         </div>
