@@ -184,10 +184,10 @@ export default function MemberPage() {
                     <p className="text-sm text-muted-foreground">{profile.phone}</p>
                   </div>
                 ) : (
-                  <div className="text-center sm:text-left flex flex-col gap-1 w-full sm:w-auto">
+                  <div className="text-center sm:text-left flex flex-col gap-1  sm:w-auto" style={{width: "70%"}}>
                     <Input 
                       value={profile.name} 
-                      className="font-semibold" 
+                      className="font-semibold " 
                       onChange={(e) => setProfile({ ...profile, name: e.target.value })} 
                       placeholder="Full Name"
                     />

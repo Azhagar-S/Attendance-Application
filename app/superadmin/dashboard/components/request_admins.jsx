@@ -13,6 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge"; // Optional: for status
 import { Input } from "@/components/ui/input";
+import { db } from "@/app/firebase/config";
+import { collection, getDocs, query, updateDoc, doc, where } from "firebase/firestore";
+import { toast } from "sonner";
+
 
 // Sample data - in a real application, this would come from props or an API
 const sampleRequests = [
@@ -42,13 +46,29 @@ const sampleRequests = [
   },
 ];
 
-export function RequestAdminsTable({ requests = sampleRequests }) {
-  const handleChangeMethod = (requestId, requestedMethod) => {
+export function RequestAdminsTable({ requests }) {
+  const handleChangeMethod = async(requestId, requestedMethod) => {
     // This is where you would implement the logic for changing the attendance method.
     // For example, you might:
     // 1. Open a modal for confirmation.
     // 2. Make an API call to your backend to update the attendance method.
     // 3. Update the state locally or refetch data.
+
+    try {
+  
+      updateDoc(doc(db, "admin_change_requests", requestId), {
+        status: "Approved",
+      });
+      toast.success("Request Approved", {
+        description: `The request to change the attendance method has been approved.`,
+        position: "top-right",
+      });
+    } catch (error) {
+      console.log(error);
+      toast.error("Request Failed", {
+        description: error.message || "There was an issue approving the request.",
+      });
+    }
     console.log(
       `Processing request to change method for ID: ${requestId} to "${requestedMethod}"`
     );

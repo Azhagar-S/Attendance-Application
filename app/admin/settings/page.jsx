@@ -1,30 +1,31 @@
 "use client";
-import { useEffect, useState as useStateSettings } from "react"; // Renamed useState
-import { Button as ButtonSettings } from "@/components/ui/button"; // Renamed
+import { useEffect, useState as useStateSettings } from "react";
+import { Button as ButtonSettings } from "@/components/ui/button";
 import {
   Card as CardSettings,
   CardContent as CardContentSettings,
   CardHeader as CardHeaderSettings,
   CardTitle as CardTitleSettings,
   CardDescription as CardDescriptionSettings,
-} from "@/components/ui/card"; // Renamed
-import { Input as InputSettings } from "@/components/ui/input"; // Renamed
-import { Label as LabelSettings } from "@/components/ui/label"; // Renamed
-import { Checkbox } from "@/components/ui/checkbox"; // Shadcn Checkbox
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Shadcn Tabs
-import { toast } from "sonner"; // Using Sonner for toast notifications
+} from "@/components/ui/card";
+import { Input as InputSettings } from "@/components/ui/input";
+import { Label as LabelSettings } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from 'date-fns';
+import { toast } from "sonner";
 import {
   Save,
   Clock as ClockIcon,
   Calendar as CalendarIconSettings,
   Briefcase,
-  Users, // Added for All Members icon
+  Users,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { auth } from "@/app/firebase/config";
 import { db } from "@/app/firebase/config";
-import { onSnapshot } from "firebase/firestore";
 import { collection, query, where, getDocs , setDoc , doc , serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -40,9 +41,9 @@ const initialDailySettings = {
   },
   defaultStartTime: "09:00",
   defaultEndTime: "17:00",
-  workingHours: "8", // Calculated or fixed
-  earlyCheckInAllowed: 30, // minutes
-  lateCheckOutAllowed: 30, // minutes
+  workingHours: "8",
+  earlyCheckInAllowed: 30,
+  lateCheckOutAllowed: 30,
 };
 
 export default function AdminSettingsPage() {
@@ -50,27 +51,26 @@ export default function AdminSettingsPage() {
   const [meetingSettings, setMeetingSettings] = useState({
     meetingTitle: "",
     meetingTime: "",
-    meetingDate: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
-    meetingDuration: "", // hours
-    earlyCheckInAllowed: "", // minutes
-    lateCheckInAllowed: "", // minutes
+    meetingDate: new Date().toISOString().split('T')[0],
+    meetingDuration: "",
+    earlyCheckInAllowed: "",
+    lateCheckInAllowed: "",
     attendees: []
   });
 
-  const [showAddMeetingModal, setShowAddMeetingModal] = useState(true);
+  const [showAddMeetingModal, setShowAddMeetingModal] = useState(false);
   const [showAddDailyAttendanceModal, setShowAddDailyAttendanceModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [user, setUser] = useState(null);
-  const [Admin___Uid, setAdminuid] = useState("");
+  const [adminUid, setAdminUid] = useState("");
   const [recentMeetings, setRecentMeetings] = useState([]);
   const [currentMethod, setCurrentMethod] = useState("");
+  const [requests, setRequests] = useState([]);
+  const [requestStatus, setRequestStatus] = useState("None"); // Initial status
 
-  // Mock employee data - replace with your actual employee data
   const [employees , setEmployees] = useState([]);
 
-  // Filter employees based on search term
   const filteredEmployees = employees.filter(
     (employee) =>
       employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,29 +80,70 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const user = auth.currentUser;
-        const phone = user.phoneNumber.slice(3);
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          console.log("No authenticated user found.");
+          return;
+        }
+        const phone = currentUser.phoneNumber.slice(3);
         const q = query(collection(db, "users"), where("phone", "==", phone));
         const querySnap = await getDocs(q);
-        if (querySnap) {
-          const userData = querySnap.docs[0].data();
-          const adminuid = userData.uid;
-          setCurrentMethod(userData.tracingMethod || "Daily Attendance");
-          
-          if (userData.tracingMethod === "Schedule Meetings") {
-            setShowAddMeetingModal(true);
-          }
-          fetchMeetingsData(adminuid);
-          fetchEmployeeData(adminuid);
+        if (querySnap.empty) {
+          console.log("No user data found for this phone number.");
+          return;
         }
+        const userData = querySnap.docs[0].data();
+        const fetchedAdminUid = querySnap.docs[0].id;
+        setAdminUid(fetchedAdminUid);
+        setCurrentMethod(userData.tracingMethod);
+
+        // Set initial tab visibility based on tracingMethod from user document
+        setShowAddMeetingModal(userData.tracingMethod === "Schedule Meetings");
+        setShowAddDailyAttendanceModal(userData.tracingMethod === "Daily Attendance");
+        
+        fetchMeetingsData(fetchedAdminUid);
+        fetchEmployeeData(fetchedAdminUid);
+
+        // Fetch requests for the admin
+        const q2 = query(collection(db, "admin_change_requests"), where("adminuid", "==", fetchedAdminUid));
+        const querySnap2 = await getDocs(q2);
+        const fetchedRequests = querySnap2.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setRequests(fetchedRequests);
+
+        let approvedDailyAttendance = userData.tracingMethod === "Daily Attendance";
+        let approvedScheduleMeetings = userData.tracingMethod === "Schedule Meetings";
+        let pendingRequestFound = false;
+
+        fetchedRequests.forEach(req => {
+          if (req.status === "Approved") {
+            if (req.requestedMethod === "Daily Attendance") {
+              approvedDailyAttendance = true;
+            } else if (req.requestedMethod === "Schedule Meetings") {
+              approvedScheduleMeetings = true;
+            }
+          } else if (req.status === "Pending") {
+            pendingRequestFound = true;
+          }
+        });
+
+        // Update tab visibility based on current method and approved requests
+        setShowAddDailyAttendanceModal(approvedDailyAttendance);
+        setShowAddMeetingModal(approvedScheduleMeetings);
+
+        // Set the overall request status for button display
+        setRequestStatus(pendingRequestFound ? "Pending" : (approvedDailyAttendance || approvedScheduleMeetings ? "Approved" : "None"));
+
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching admin data:", error);
+        toast.error("Error", {
+          description: "Failed to fetch admin data.",
+          position: "top-right"
+        });
       }
     };
 
-    const fetchMeetingsData = async (adminuid) => {
-      console.log("adminuid",adminuid)
-      if (adminuid == "")  {
+    const fetchMeetingsData = async (adminId) => {
+      if (!adminId) {
         console.log("No admin UID available, skipping meetings fetch");
         return;
       }
@@ -110,11 +151,11 @@ export default function AdminSettingsPage() {
       try {
         const q = query(
           collection(db, "Meetings"),
-          where("adminUid", "==", adminuid),
+          where("adminUid", "==", adminId),
         );
-        
+
         const querySnap = await getDocs(q);
-        
+
         if (querySnap.empty) {
           console.log("No meetings found for this admin");
           setRecentMeetings([]);
@@ -122,9 +163,8 @@ export default function AdminSettingsPage() {
         }
 
         const meetingsData = querySnap.docs.map(doc => ({
-          id: doc.id, // Include document ID
+          id: doc.id,
           ...doc.data(),
-          // Convert Firestore Timestamp to JS Date if needed
           meetingDate: doc.data().meetingDate?.toDate
             ? doc.data().meetingDate.toDate().toISOString().split('T')[0]
             : doc.data().meetingDate
@@ -140,13 +180,17 @@ export default function AdminSettingsPage() {
       }
     };
 
-    const fetchEmployeeData = async (adminuid) => {
+    const fetchEmployeeData = async (adminId) => {
       try {
-        const user = auth.currentUser;
-        const phone = user.phoneNumber.slice(3);
-        const q = query(collection(db, "users"), where("adminuid", "==", adminuid));
+        if (!adminId) {
+            console.log("No admin UID available, skipping employee fetch");
+            return;
+        }
+
+        const q = query(collection(db, "users"), where("adminuid", "==", adminId));
         const querySnap = await getDocs(q);
         if (querySnap) {
+          const fetchedEmployees = [];
           querySnap.forEach(doc => {
             const employeeData = doc.data();
             const employee = {
@@ -154,27 +198,40 @@ export default function AdminSettingsPage() {
               name: employeeData.name,
               email: employeeData.email,
             };
-            setEmployees(prev => [...prev, employee]);
+            fetchedEmployees.push(employee);
           });
-          
+          setEmployees(fetchedEmployees);
         }
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching employee data:", error);
+        toast.error("Error", {
+          description: "Failed to fetch employee data.",
+          position: "top-right"
+        });
       }
     };
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
         fetchAdminData();
+      } else {
+        setUser(null);
+        setAdminUid("");
+        setRecentMeetings([]);
+        setEmployees([]);
+        setCurrentMethod("");
+        setRequests([]);
+        setRequestStatus("None");
+        setShowAddMeetingModal(false);
+        setShowAddDailyAttendanceModal(false);
       }
     });
     return () => unsubscribe();
-  }, [auth ]);
+  }, []);
 
   const handleEmployeeSelect = (employee) => {
     setMeetingSettings(prev => {
-      // Check if attendee already exists
       const exists = prev.attendees.some(a => a.id === employee.id);
       if (!exists) {
         const updatedAttendees = [...(prev.attendees || []), {
@@ -193,10 +250,8 @@ export default function AdminSettingsPage() {
     setShowDropdown(false);
   };
 
-  // New function to handle "All Members" selection
   const handleSelectAllMembers = () => {
     setMeetingSettings(prev => {
-      // Get all employees that aren't already selected
       const currentAttendeeIds = new Set(prev.attendees.map(a => a.id));
       const newAttendees = employees.filter(emp => !currentAttendeeIds.has(emp.id))
         .map(emp => ({
@@ -204,7 +259,7 @@ export default function AdminSettingsPage() {
           name: emp.name,
           email: emp.email
         }));
-      
+
       return {
         ...prev,
         attendees: [...prev.attendees, ...newAttendees]
@@ -212,12 +267,6 @@ export default function AdminSettingsPage() {
     });
     setSearchTerm('');
     setShowDropdown(false);
-    
-    // // Show success toast
-    // toast.success("All Members Added", {
-    //   description: `Added ${employees.length} members to the meeting.`,
-    //   position: "top-right"
-    // });
   };
 
   const removeAttendee = (employeeId) => {
@@ -227,19 +276,13 @@ export default function AdminSettingsPage() {
     }));
   };
 
-  // New function to clear all attendees
   const clearAllAttendees = () => {
     setMeetingSettings(prev => ({
       ...prev,
       attendees: []
     }));
-    // toast.success("Cleared", {
-    //   description: "All attendees have been removed.",
-    //   position: "top-right"
-    // });
   };
 
-  // Using Sonner toast directly
   const handleDailySettingChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name.startsWith("workingDays.")) {
@@ -271,22 +314,20 @@ export default function AdminSettingsPage() {
         throw new Error("User phone number not available");
       }
 
-      // Get admin UID
       const q = query(collection(db, "users"), where("phone", "==", phone));
       const querySnap = await getDocs(q);
-      
+
       if (querySnap.empty) {
         throw new Error("User not found");
       }
 
       const adminDoc = querySnap.docs[0];
-      const adminUid = adminDoc.id;
+      const currentAdminUid = adminDoc.id;
 
-      // Create a new document in Daily_attendance collection
       const dailyAttendanceRef = doc(collection(db, "Daily_attendance"));
-      
+
       const dailyAttendanceData = {
-        adminUid: adminUid,
+        adminUid: currentAdminUid,
         workingDays: dailySettings.workingDays,
         defaultStartTime: dailySettings.defaultStartTime,
         defaultEndTime: dailySettings.defaultEndTime,
@@ -299,11 +340,9 @@ export default function AdminSettingsPage() {
         settingsId: dailyAttendanceRef.id
       };
 
-      // Save to Firebase
       await setDoc(dailyAttendanceRef, dailyAttendanceData);
 
-      // Update user's tracing method
-      await setDoc(doc(db, "users", adminUid), {
+      await setDoc(doc(db, "users", currentAdminUid), {
         tracingMethod: "Daily Attendance"
       }, { merge: true });
 
@@ -338,14 +377,15 @@ export default function AdminSettingsPage() {
 
       const q = query(collection(db, "users"), where("phone", "==", phone));
       const querySnap = await getDocs(q);
-      
+
       if (querySnap.empty) {
         throw new Error("User not found");
       }
 
       const adminDoc = querySnap.docs[0];
+      const currentAdminUid = adminDoc.id;
       const meetingRef = doc(collection(db, "Meetings"));
-      
+
       const meetingData = {
         meetingTitle: meetingSettings.meetingTitle,
         meetingDate: meetingSettings.meetingDate,
@@ -353,17 +393,15 @@ export default function AdminSettingsPage() {
         meetingDuration: Number(meetingSettings.meetingDuration) || 1,
         earlyCheckInAllowed: Number(meetingSettings.earlyCheckInAllowed) || 15,
         attendees: meetingSettings.attendees || [],
-        adminUid: adminDoc.id,
+        adminUid: currentAdminUid,
         createdBy: user.uid,
         createdAt: serverTimestamp(),
         status: "upcoming",
         meetingId: meetingRef.id,
       };
-      console.log("Meeting Data:", meetingSettings);
 
       await setDoc(meetingRef, meetingData);
 
-      // Reset form after successful save
       setMeetingSettings({
         meetingTitle: "",
         meetingDate: new Date().toISOString().split('T')[0],
@@ -397,6 +435,123 @@ export default function AdminSettingsPage() {
     { id: 'sun', label: "Sunday" },
   ];
 
+  const handleAddFeature = async(feature) => {
+    try {
+      const phone = user?.phoneNumber?.slice(3);
+      if (!phone) {
+        toast.error("Error", { description: "User phone number not available." });
+        return;
+      }
+
+      const q = query(collection(db, "users"), where("phone", "==", phone));
+      const querySnap = await getDocs(q);
+      if (querySnap.empty) {
+        toast.error("Error", { description: "Admin user not found." });
+        return;
+      }
+
+      const adminDoc = querySnap.docs[0];
+      const adminData = adminDoc.data();
+      const currentAdminId = adminDoc.id;
+
+      let requestedMethod = "";
+      if (feature === "daily") { // Requesting Daily Attendance
+        requestedMethod = "Daily Attendance";
+      } else if (feature === "meeting") { // Requesting Schedule Meetings
+        requestedMethod = "Schedule Meetings";
+      } else {
+        return;
+      }
+
+      const today = new Date();
+      const formattedDate = format(today, 'yyyy-MM-dd');
+
+      // Check for existing pending requests for the same method
+      const existingPendingRequest = requests.find(
+        req => req.adminuid === currentAdminId && req.requestedMethod === requestedMethod && req.status === "Pending"
+      );
+
+      if (existingPendingRequest) {
+        toast.info("Request Already Pending", {
+          description: `A request to enable ${requestedMethod} is already pending approval.`,
+          position: "top-right",
+        });
+        return;
+      }
+
+      const docRef = doc(collection(db, "admin_change_requests"));
+      
+      await setDoc(docRef, {
+        adminuid: currentAdminId,
+        adminName: adminData.name,
+        adminEmail: adminData.email,
+        requestedMethod: requestedMethod,
+        status: "Pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        requestDate: formattedDate,
+      });
+
+      toast.success("Request Submitted", {
+        description: `Your request to enable ${requestedMethod} has been sent for approval.`,
+        position: "top-right",
+      });
+
+      // Optimistically update the request status to 'Pending' in local state
+      setRequestStatus("Pending");
+      setRequests(prev => [...prev, {
+        id: docRef.id,
+        adminuid: currentAdminId,
+        adminName: adminData.name,
+        adminEmail: adminData.email,
+        requestedMethod: requestedMethod,
+        status: "Pending",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        requestDate: formattedDate,
+      }]);
+
+    } catch (error) {
+      console.error("Error submitting feature request:", error);
+      toast.error("Request Failed", {
+        description: error.message || "There was an issue submitting your request.",
+        position: "top-right",
+      });
+    }
+  };
+
+  // Determine initial tab to be active
+  const initialActiveTab = (() => {
+    if (showAddMeetingModal && currentMethod === "Schedule Meetings") return "scheduleMeetings";
+    if (showAddDailyAttendanceModal && currentMethod === "Daily Attendance") return "dailyAttendance";
+    
+    // If a method was approved via request, set that as the initial active tab
+    if (showAddMeetingModal) return "scheduleMeetings"; 
+    if (showAddDailyAttendanceModal) return "dailyAttendance";
+    
+    // Fallback if no specific method is currently active or approved via request
+    return "dailyAttendance"; 
+  })();
+
+  const showRequestButton = (targetFeature) => {
+    // If the target feature is already enabled, no need for a request button
+    if (targetFeature === "daily" && showAddDailyAttendanceModal) return false;
+    if (targetFeature === "meeting" && showAddMeetingModal) return false;
+
+    // Check if there's an existing pending request for this specific feature
+    const hasPendingRequestForFeature = requests.some(req => 
+        req.requestedMethod === (targetFeature === "daily" ? "Daily Attendance" : "Schedule Meetings") && 
+        req.status === "Pending"
+    );
+
+    return !hasPendingRequestForFeature;
+  };
+
+
+  if( showAddDailyAttendanceModal){
+    console.log("aidsbouabdoubfouadofboabdobcaosudcjlashocuavocbou")
+  }
+
   return (
     <div className="space-y-6 mt-10 mx-10">
       <div className="flex justify-between items-center">
@@ -408,20 +563,21 @@ export default function AdminSettingsPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          {showAddMeetingModal ? (
-            <Button onClick={() => setShowAddDailyAttendanceModal(true)}>
-              Request To Add Daily Attendance
+          {showRequestButton("daily") && currentMethod === "Schedule Meetings" && (
+            <Button onClick={() => handleAddFeature("daily")} disabled={requestStatus === "Pending"}>
+              {requestStatus === "Pending" ? "Request Pending..." : "Request To Add Daily Attendance"}
             </Button>
-          ) : (
-            <Button onClick={() => setShowAddMeetingModal(true)}>
-              Request To Add Schedule Meetings
+          )}
+          {showRequestButton("meeting") && currentMethod === "Daily Attendance" && (
+            <Button onClick={() => handleAddFeature("meeting")} disabled={requestStatus === "Pending"}>
+              {requestStatus === "Pending" ? "Request Pending..." : "Request To Add Schedule Meetings"}
             </Button>
           )}
         </div>
       </div>
 
       <Tabs
-        defaultValue={showAddMeetingModal ? "scheduleMeetings" : "dailyAttendance"}
+        defaultValue={initialActiveTab}
         className="w-full"
       >
         <TabsList
@@ -636,7 +792,7 @@ export default function AdminSettingsPage() {
                     />
                   </div>
                   <div className="space-y-2 w-full relative">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between ">
                       <LabelSettings>Select Members</LabelSettings>
                       {meetingSettings.attendees?.length > 0 && (
                         <Button
@@ -698,12 +854,54 @@ export default function AdminSettingsPage() {
                         </div>
                       )}
                     </div>
+                    {/* Display selected members */}
+                    {meetingSettings.attendees?.length > 0 && (
+                      <div className="pt-2 flex flex-wrap gap-2">
+                        {meetingSettings.attendees.map((employee) => (
+                          <div
+                            key={employee.id}
+                            className="flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full"
+                          >
+                            <span>{employee.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttendee(employee.id)}
+                              className="text-blue-500 hover:text-blue-700 rounded-full hover:bg-blue-200 p-0.5"
+                              aria-label={`Remove ${employee.name}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex justify-end pt-4">
                   <ButtonSettings onClick={handleSaveMeetingSettings}>
                     <Save className="mr-2 h-4 w-4" /> Save Meeting Settings
                   </ButtonSettings>
+                </div>
+
+                <div className="pt-6">
+                  <h3 className="text-lg font-medium mb-2">
+                    Recent Meetings Details (View)
+                  </h3>
+                  <CardSettings className="border-dashed">
+                    <CardContentSettings className="p-6 text-center">
+                      <div className="mt-4 text-left text-xs space-y-1">
+                        {recentMeetings.map((m) => (
+                          <div
+                            key={m.id}
+                            className="p-2 border rounded bg-slate-50"
+                          >
+                            <strong>{m.meetingTitle}</strong> - {m.meetingDate} @ {m.meetingTime} (
+                            {m.attendees.length} attendees)
+                          </div>
+                        ))}
+                      </div>
+                    </CardContentSettings>
+                  </CardSettings>
                 </div>
               </CardContentSettings>
             </CardSettings>

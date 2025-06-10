@@ -41,6 +41,8 @@ export default function LoginForm() {
     const [checkingStatus, setCheckingStatus] = useState(true);
     const [recaptchaVerifier, setRecaptchaVerifier] = useState(null);
 
+    const [userData, setUserData] = useState(null);
+
     // for passing data
 
 
@@ -98,6 +100,11 @@ export default function LoginForm() {
       return;
     }
 
+    if(phone.length !== 10){
+      setError("Please enter a valid phone number");
+      return;
+    }
+
     
     setLoading(true);
     setError("");
@@ -125,8 +132,9 @@ export default function LoginForm() {
         where("phone", "==", phone)
       );
       const adminSnapshot = await getDocs(adminQuery);
+      const usersQuerySnapshot = querySnapshot.docs[0];
       
-      if (adminSnapshot.empty) {
+      if (adminSnapshot.empty && usersQuerySnapshot.empty) {
         setError("User not found");
         setLoading(false);
         return;
@@ -171,49 +179,52 @@ export default function LoginForm() {
       try {
         await confirmation.confirm(otp);
     
-        const q = query(collection(db, "request"), where("phone", "==", phone));
-        const snapshot = await getDocs(q);
-
-        const adminQuery = query(
-          collection(db, "users"),
-          where("phone", "==", phone)
-        );
-        const adminSnapshot = await getDocs(adminQuery);
-        if (!adminSnapshot.empty) {
-          const adminDocRef = adminSnapshot.docs[0];
-          const adminData = adminDocRef.data();
-        }
+        const usersQuery = query(collection(db, "users"), where("phone", "==", phone));
+        const usersSnapshot = await getDocs(usersQuery);
     
-        if (!snapshot.empty) {
-          const docRef = snapshot.docs[0];
-          const userData = docRef.data();
-          const docId = docRef.id;
+        const requestQuery = query(collection(db, "request"), where("phone", "==", phone));
+        const requestSnapshot = await getDocs(requestQuery);
     
-          if (userData.role === "admin") {
-            if (userData.isNew) {
-              await updateDoc(doc(db, "request", docId), { isNew: false });
-           
+        // Prioritize user data from 'users' collection if it exists
+        if (!usersSnapshot.empty) {
+          const userDoc = usersSnapshot.docs[0];
+          const userData = userDoc.data();
+          const requestDoc = requestSnapshot.empty ? null : requestSnapshot.docs[0];
+    
+          if (userData.isNew) {
+            // User is new, route to account creation
+            // if (requestDoc) {
+            //   await updateDoc(doc(db, "request", requestDoc.id), { isNew: false });
+            // }
+            if (userData.role === "admin") {
               return router.push("/createaccount/admin-create-account");
-            } else {
-                  // if(!userData.isActive){
-                  //   setError("Your account is not active. Please contact the admin.");
-                  //   return;
-                  // }
-
-                  await updateDoc(doc(db, "request", docId), { lastLogin:serverTimestamp() });
-              return router.push("/admin");
-            }
-          } else if (userData.role === "employee") {
-            if (userData.isNew) {
-              await updateDoc(doc(db, "request", docId), { isNew: false });
+            } else { // 'employee'
               return router.push("/createaccount/employee-create-account");
-            } else {
-              // if(!userData.isActive){
-              //   setError("Your account is not active. Please contact the admin.");
-              //   return;
-              // }
+            }
+          } else {
+            // User is existing, route to dashboard
+            await updateDoc(doc(db, "users", userDoc.id), { lastLogin: serverTimestamp() });
+            if (requestDoc) {
+              await updateDoc(doc(db, "request", requestDoc.id), { lastLogin: serverTimestamp() });
+            }
+    
+            if (userData.role === "admin") {
+              return router.push("/admin");
+            } else { // 'employee'
               return router.push("/employee");
             }
+          }
+        } else if (!requestSnapshot.empty) {
+          // User only exists in 'request' collection
+          const requestDoc = requestSnapshot.docs[0];
+          const requestData = requestDoc.data();
+          
+          await updateDoc(doc(db, "request", requestDoc.id), { isNew: false });
+          
+          if (requestData.role === "admin") {
+            return router.push("/createaccount/admin-create-account");
+          } else if (requestData.role === "employee") {
+            return router.push("/createaccount/employee-create-account");
           } else {
             setError("User role is invalid.");
           }

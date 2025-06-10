@@ -1,7 +1,10 @@
-
+'use client'
 import { RequestAdminsTable } from "../components/request_admins";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { db } from "@/app/firebase/config";
+import { collection, getDocs, query } from "firebase/firestore";
 
 // In a real app, you'd fetch this data from your backend
 async function getAdminChangeRequests() {
@@ -42,10 +45,23 @@ async function getAdminChangeRequests() {
   ];
 }
 
-export default async function AttendanceSettingsPage() {
-  const requests = await getAdminChangeRequests();
+export default function AttendanceSettingsPage() {
+  const [requests, setRequests] = useState([]);
 
-
+  useEffect(() => {
+    const fetchAdminChangeRequests = async () => {
+      try {
+        const q = query(collection(db, "admin_change_requests"));
+        const querySnap = await getDocs(q);
+        const requests = querySnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setRequests(requests);
+      } catch (error) {
+        console.error("Error fetching admin change requests:", error);
+        // Optionally, show a toast notification on error
+      }
+    };
+    fetchAdminChangeRequests();
+  }, []);
 
   return (
     <div className="mx-auto p-3 sm:p-4 md:p-6 lg:p-8 max-w-7xl">

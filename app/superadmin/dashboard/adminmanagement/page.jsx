@@ -426,7 +426,7 @@ useEffect(()=>{
                         {admin.isActive && 'active' ? 'Active' : 'Inactive'}
                     </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{admin.lastLogin || 'N/A'}</TableCell>
+                    {/* <TableCell className="hidden md:table-cell">{admin.lastLogin || 'N/A'}</TableCell> */}
                     <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>

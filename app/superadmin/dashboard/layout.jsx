@@ -106,8 +106,8 @@ export default function SuperAdminPanelLayout({ children }) {
     { href: "/superadmin/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/superadmin/dashboard/adminmanagement", label: "Admin Management", icon: UserCog },
     { href: "/superadmin/dashboard/attendancerules", label: "Attendance Rules", icon: ClipboardList },
-    { href: "/superadmin/dashboard/activity-log", label: "Activity Logs", icon: FileText },
-    { href: "/superadmin/dashboard/system-settings", label: "System Settings", icon: Settings },
+    // { href: "/superadmin/dashboard/activity-log", label: "Activity Logs", icon: FileText },
+    // { href: "/superadmin/dashboard/system-settings", label: "System Settings", icon: Settings },
   ];
 
   const SidebarContent = () => (

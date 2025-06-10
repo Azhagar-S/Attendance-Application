@@ -85,6 +85,7 @@ export default function EmployeeManagementPage() {
     name: "",
     email: "",
     department: "",
+    creationMethod: "request",
     tracingMethod: "",
   });
 
@@ -148,7 +149,7 @@ export default function EmployeeManagementPage() {
     }
   };
 
-  // Fetch requests function - Modified to exclude employees who already have accounts
+  // Fetch requests function
   const fetchRequests = async (currentUser) => {
     if (!currentUser || !currentUser.phoneNumber) return;
 
@@ -176,22 +177,13 @@ export default function EmployeeManagementPage() {
       );
       const requestSnapshot = await getDocs(requestQuery);
 
-      const allRequests = requestSnapshot.docs.map((doc) => ({
+      const requests = requestSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      // Get all existing employee phone numbers
-      const existingPhones = employees.map(emp => emp.phone);
-
-      // Filter out requests from users who already have employee accounts
-      const filteredRequests = allRequests.filter(req => 
-        !existingPhones.includes(req.phone) && 
-        (req.status === "pending" || !req.status)
-      );
-
-      setRequests(filteredRequests);
-      console.log("Fetched filtered requests:", filteredRequests);
+      setRequests(requests);
+      console.log("Fetched requests:", requests);
     } catch (error) {
       console.error("Error fetching requests:", error);
     }
@@ -199,33 +191,39 @@ export default function EmployeeManagementPage() {
 
   // Auth state listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) {
+        // Assuming you have router available
+        // return router.push("/admin/auth");
         console.log("No user authenticated");
         return;
       }
 
       setUser(user);
-      await fetchEmployees(user);
+      fetchEmployees(user);
+      fetchRequests(user);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Fetch requests after employees are loaded
-  useEffect(() => {
-    if (user && employees.length >= 0) {
-      fetchRequests(user);
-    }
-  }, [user, employees]);
-
   const handleCreateEmployee = async (e) => {
     e.preventDefault();
 
     // Validation
-    if (!newEmployee.phone || !newEmployee.name || !newEmployee.email) {
-      toast.error("Please fill in all required fields (Name, Email, Phone Number)");
-      return;
+    if (newEmployee.creationMethod === "manual") {
+      if (!newEmployee.phone || !newEmployee.name || !newEmployee.email) {
+        toast.error(
+          "Please fill in all required fields (Name, Email, Phone Number)"
+        );
+        return;
+      }
+    } else {
+      // For requests, only phone is required
+      if (!newEmployee.phone) {
+        toast.error("Phone number is required");
+        return;
+      }
     }
 
     try {
@@ -250,32 +248,61 @@ export default function EmployeeManagementPage() {
       const companyuid = adminData.companyuid;
       const defaultTracingMethod = adminData.tracingMethod || "Daily Attendance";
 
-      // Direct creation - add directly to users collection
-      const newEmployeeData = {
-        phone: newEmployee.phone,
-        name: newEmployee.name,
-        email: newEmployee.email,
-        companyuid: companyuid,
-        createdAt: serverTimestamp(),
-        role: "employee",
-        lastUpdated: serverTimestamp(),
-        adminuid: adminUid,
-        isNew: false,
-        tracingMethod: newEmployee.tracingMethod || defaultTracingMethod,
-        isActive: true,
-        department: newEmployee.department || "Unassigned",
-      };
+      if (newEmployee.creationMethod === "manual") {
+        // Manual creation - add directly to users collection
+        const newEmployeeData = {
+          phone: newEmployee.phone,
+          name: newEmployee.name,
+          email: newEmployee.email,
+          companyuid: companyuid,
+          createdAt: serverTimestamp(),
+          role: "employee",
+          lastUpdated: serverTimestamp(),
+          adminuid: adminUid,
+          isNew: false,
+          tracingMethod: newEmployee.tracingMethod || defaultTracingMethod,
+          isActive: true,
+          department: newEmployee.department || "Unassigned",
+        };
 
-      const newDocRef = doc(collection(db, "users"));
-      newEmployeeData.uid = newDocRef.id;
-      await setDoc(newDocRef, newEmployeeData);
-      
-      console.log("Employee added to users collection:", newEmployeeData);
-      toast.success(`Employee ${newEmployee.name} has been added successfully.`);
-      
-      // Refresh the employee list
-      await fetchEmployees(auth.currentUser);
-      
+        const newDocRef = doc(collection(db, "users"));
+        newEmployeeData.uid = newDocRef.id;
+        await setDoc(newDocRef, newEmployeeData);
+        
+        console.log("Employee added to users collection:", newEmployeeData);
+        toast.success(`Employee ${newEmployee.name} has been added successfully.`);
+        
+        // Refresh the employee list
+        await fetchEmployees(auth.currentUser);
+        
+      } else {
+        // Request creation - add to request collection
+        const newEmployeeData = {
+          phone: newEmployee.phone,
+          companyuid: companyuid,
+          createdAt: serverTimestamp(),
+          role: "employee",
+          isNew: true,
+          lastUpdated: serverTimestamp(),
+          adminuid: adminUid,
+          tracingMethod: newEmployee.tracingMethod || defaultTracingMethod,
+          isActive: true,
+          department: newEmployee.department || "Unassigned",
+          status: "pending", // Add status for requests
+        };
+
+        const newDocRef = doc(collection(db, "request"));
+        newEmployeeData.uid = newDocRef.id;
+        await setDoc(newDocRef, newEmployeeData);
+        
+        console.log("Employee request added:", newEmployeeData);
+        toast.success("Employee request has been sent for approval.");
+        
+        // Refresh both employee list and requests
+        await fetchEmployees(auth.currentUser);
+        await fetchRequests(auth.currentUser);
+      }
+
       // Reset form and close modal
       setIsCreateModalOpen(false);
       setNewEmployee({
@@ -283,6 +310,7 @@ export default function EmployeeManagementPage() {
         name: "",
         email: "",
         department: "",
+        creationMethod: "request",
         tracingMethod: "",
       });
 
@@ -359,6 +387,10 @@ export default function EmployeeManagementPage() {
       )
     ) {
       try {
+        // You might want to implement soft delete by updating isActive to false
+        // Or actually delete the document - uncomment the line below for hard delete
+        // await deleteDoc(doc(db, "users", employeeId));
+        
         // For now, just removing from local state (soft delete approach)
         setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
         
@@ -368,6 +400,66 @@ export default function EmployeeManagementPage() {
       } catch (error) {
         console.error("Error deleting employee:", error);
         toast.error("Failed to delete employee");
+      }
+    }
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    try {
+      const request = requests.find((req) => req.id === requestId);
+      
+      if (!request) {
+        toast.error("Request not found");
+        return;
+      }
+
+      // Move request to users collection
+      const newEmployeeData = {
+        ...request,
+        isNew: false,
+        status: "approved",
+        approvedAt: serverTimestamp(),
+      };
+      
+      // Remove the id field before adding to users collection
+      delete newEmployeeData.id;
+      
+      const newDocRef = doc(collection(db, "users"));
+      newEmployeeData.uid = newDocRef.id;
+      await setDoc(newDocRef, newEmployeeData);
+
+      // Remove from requests collection
+      // await deleteDoc(doc(db, "request", requestId));
+      // Or update status to approved
+      await updateDoc(doc(db, "request", requestId), {
+        status: "approved",
+        approvedAt: serverTimestamp(),
+      });
+
+      // Refresh both lists
+      await fetchEmployees(auth.currentUser);
+      await fetchRequests(auth.currentUser);
+
+      toast.success("Request approved successfully!");
+    } catch (error) {
+      console.error("Error approving request:", error);
+      toast.error("Failed to approve request");
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    if (window.confirm("Are you sure you want to reject this request?")) {
+      try {
+        await updateDoc(doc(db, "request", requestId), {
+          status: "rejected",
+          rejectedAt: serverTimestamp(),
+        });
+
+        await fetchRequests(auth.currentUser);
+        toast.error("Request rejected");
+      } catch (error) {
+        console.error("Error rejecting request:", error);
+        toast.error("Failed to reject request");
       }
     }
   };
@@ -391,6 +483,7 @@ export default function EmployeeManagementPage() {
         name: "",
         email: "",
         department: "",
+        creationMethod: "request",
         tracingMethod: "",
       });
     }
@@ -399,7 +492,7 @@ export default function EmployeeManagementPage() {
   // Get status counts for display
   const activeCount = employees.filter((emp) => emp.isActive === true).length;
   const inactiveCount = employees.filter((emp) => emp.isActive === false).length;
-  const pendingRequestsCount = requests.length;
+  const pendingRequestsCount = requests.filter((req) => req.status === "pending" || !req.status).length;
 
   return (
     <div className="space-y-6 mt-10 mx-10">
@@ -425,6 +518,33 @@ export default function EmployeeManagementPage() {
             </DialogHeader>
             <form onSubmit={handleCreateEmployee} className="space-y-4 py-2">
               <div>
+                <Label htmlFor="creationMethod-new" className="mb-2">
+                  Creation Method
+                </Label>
+                <ShadcnSelect
+                  value={newEmployee.creationMethod}
+                  onValueChange={(value) =>
+                    setNewEmployee((prev) => ({
+                      ...prev,
+                      creationMethod: value,
+                    }))
+                  }
+                >
+                  <ShadcnSelectTrigger>
+                    <ShadcnSelectValue placeholder="Select creation method" />
+                  </ShadcnSelectTrigger>
+                  <ShadcnSelectContent>
+                    <ShadcnSelectItem value="request">
+                      Request (Pending Approval)
+                    </ShadcnSelectItem>
+                    <ShadcnSelectItem value="manual">
+                      Manually (Direct Add)
+                    </ShadcnSelectItem>
+                  </ShadcnSelectContent>
+                </ShadcnSelect>
+              </div>
+
+              <div>
                 <Label htmlFor="phone-new" className="mb-2">
                   Phone Number
                 </Label>
@@ -443,88 +563,73 @@ export default function EmployeeManagementPage() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="name-new" className="mb-2">
-                  Name
-                </Label>
-                <Input
-                  id="name-new"
-                  name="name"
-                  type="text"
-                  value={newEmployee.name}
-                  onChange={(e) =>
-                    setNewEmployee((prev) => ({
-                      ...prev,
-                      name: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="email-new" className="mb-2">
-                  Email
-                </Label>
-                <Input
-                  id="email-new"
-                  name="email"
-                  type="email"
-                  value={newEmployee.email}
-                  onChange={(e) =>
-                    setNewEmployee((prev) => ({
-                      ...prev,
-                      email: e.target.value,
-                    }))
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="department-new" className="mb-2">
-                  Department
-                </Label>
-                <Input
-                  id="department-new"
-                  name="department"
-                  type="text"
-                  value={newEmployee.department}
-                  onChange={(e) =>
-                    setNewEmployee((prev) => ({
-                      ...prev,
-                      department: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="tracingMethod-new" className="mb-2">
-                  Tracing Method
-                </Label>
-                <ShadcnSelect
-                  value={newEmployee.tracingMethod}
-                  onValueChange={(value) =>
-                    setNewEmployee((prev) => ({
-                      ...prev,
-                      tracingMethod: value,
-                    }))
-                  }
-                >
-                  <ShadcnSelectTrigger>
-                    <ShadcnSelectValue placeholder="Select tracing method" />
-                  </ShadcnSelectTrigger>
-                  <ShadcnSelectContent>
-                    <ShadcnSelectItem value="Daily Attendance">
-                      Daily Attendance
-                    </ShadcnSelectItem>
-                    <ShadcnSelectItem value="Schedule Meetings">
-                      Schedule Meetings
-                    </ShadcnSelectItem>
-                  </ShadcnSelectContent>
-                </ShadcnSelect>
-              </div>
+              {newEmployee.creationMethod === "manual" && (
+                <>
+                  <div>
+                    <Label htmlFor="name-new" className="mb-2">
+                      Name
+                    </Label>
+                    <Input
+                      id="name-new"
+                      name="name"
+                      type="text"
+                      value={newEmployee.name}
+                      onChange={(e) =>
+                        setNewEmployee((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email-new" className="mb-2">
+                      Email
+                    </Label>
+                    <Input
+                      id="email-new"
+                      name="email"
+                      type="email"
+                      value={newEmployee.email}
+                      onChange={(e) =>
+                        setNewEmployee((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      required
+                    />
+                  </div>
+                
+                  {/* <div>
+                    <Label htmlFor="tracingMethod-new" className="mb-2">
+                      Tracing Method
+                    </Label>
+                    <ShadcnSelect
+                      value={newEmployee.tracingMethod}
+                      onValueChange={(value) =>
+                        setNewEmployee((prev) => ({
+                          ...prev,
+                          tracingMethod: value,
+                        }))
+                      }
+                    >
+                      <ShadcnSelectTrigger>
+                        <ShadcnSelectValue placeholder="Select tracing method" />
+                      </ShadcnSelectTrigger>
+                      <ShadcnSelectContent>
+                        <ShadcnSelectItem value="Daily Attendance">
+                          Daily Attendance
+                        </ShadcnSelectItem>
+                        <ShadcnSelectItem value="Schedule Meetings">
+                          Schedule Meetings
+                        </ShadcnSelectItem>
+                      </ShadcnSelectContent>
+                    </ShadcnSelect>
+                  </div> */}
+                </>
+              )}
 
               <DialogFooter className="pt-4">
                 <DialogClose asChild>
@@ -681,71 +786,104 @@ export default function EmployeeManagementPage() {
         </CardContent>
       </Card>
 
-      {/* Employee Requests Section - Only show if there are actual pending requests */}
-      {pendingRequestsCount > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Pending Employee Requests ({pendingRequestsCount})
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                - New requests from employees
-              </span>
-            </CardTitle>
-            <CardDescription>
-              New employee requests that don't have existing accounts yet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <ShadcnTable>
-                <ShadcnTableHeader>
-                  <ShadcnTableRow>
-                    <ShadcnTableHead className="w-[80px]">ID</ShadcnTableHead>
-                    <ShadcnTableHead>Phone</ShadcnTableHead>
-                    <ShadcnTableHead className="hidden md:table-cell">
-                      Department
-                    </ShadcnTableHead>
-                    <ShadcnTableHead className="hidden lg:table-cell">
-                      Request Date
-                    </ShadcnTableHead>
-                    <ShadcnTableHead>Status</ShadcnTableHead>
-                  </ShadcnTableRow>
-                </ShadcnTableHeader>
-                <ShadcnTableBody>
-                  {requests.map((req, index) => (
-                    <ShadcnTableRow key={req.id}>
-                      <ShadcnTableCell className="font-mono text-xs">
-                        {index + 1}
-                      </ShadcnTableCell>
-                      <ShadcnTableCell className="font-medium">
-                        {req.phone || "N/A"}
-                      </ShadcnTableCell>
-                      <ShadcnTableCell className="hidden md:table-cell">
-                        {req.department || "Unassigned"}
-                      </ShadcnTableCell>
-                      <ShadcnTableCell className="hidden lg:table-cell">
-                        {req.createdAt
-                          ? new Date(req.createdAt.seconds * 1000).toLocaleDateString()
-                          : "N/A"}
-                      </ShadcnTableCell>
-                      <ShadcnTableCell>
-                        <ShadcnBadge
-                          variant="outline"
-                          className="border-yellow-500 text-yellow-700 bg-yellow-100 text-xs whitespace-nowrap"
-                        >
-                          <Square className="mr-1 h-3 w-3" />
-                          Pending
-                        </ShadcnBadge>
-                      </ShadcnTableCell>
-                    </ShadcnTableRow>
-                  ))}
-                </ShadcnTableBody>
-              </ShadcnTable>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Employee Requests Section */}
 
+      {requests.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Pending Employee Requests ({pendingRequestsCount})
+            <span className="text-sm font-normal text-muted-foreground ml-2">
+              - Employees waiting for approval
+            </span>
+          </CardTitle>
+          <CardDescription>
+            Review and approve employee requests before they join your organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <ShadcnTable>
+              <ShadcnTableHeader>
+                <ShadcnTableRow>
+                  <ShadcnTableHead className="w-[80px]">ID</ShadcnTableHead>
+                  <ShadcnTableHead>Phone</ShadcnTableHead>
+                  <ShadcnTableHead className="hidden md:table-cell">
+                    Department
+                  </ShadcnTableHead>
+                  <ShadcnTableHead className="hidden lg:table-cell">
+                    Request Date
+                  </ShadcnTableHead>
+                  <ShadcnTableHead>Status</ShadcnTableHead>
+                  {/* <ShadcnTableHead className="text-right">Actions</ShadcnTableHead> */}
+                </ShadcnTableRow>
+              </ShadcnTableHeader>
+              <ShadcnTableBody>
+                {requests.length > 0 ? (
+                  requests
+                    .filter((req) => req.status === "pending" || !req.status)
+                    .map((req, index) => (
+                      <ShadcnTableRow key={req.id}>
+                        <ShadcnTableCell className="font-mono text-xs">
+                          {index + 1}
+                        </ShadcnTableCell>
+                        <ShadcnTableCell className="font-medium">
+                          {req.phone || "N/A"}
+                        </ShadcnTableCell>
+                        <ShadcnTableCell className="hidden md:table-cell">
+                          {req.department || "Unassigned"}
+                        </ShadcnTableCell>
+                        <ShadcnTableCell className="hidden lg:table-cell">
+                          {req.createdAt
+                            ? new Date(req.createdAt.seconds * 1000).toLocaleDateString()
+                            : "N/A"}
+                        </ShadcnTableCell>
+                        <ShadcnTableCell>
+                          <ShadcnBadge
+                            variant="outline"
+                            className="border-yellow-500 text-yellow-700 bg-yellow-100 text-xs whitespace-nowrap"
+                          >
+                            <Square className="mr-1 h-3 w-3" />
+                            Pending
+                          </ShadcnBadge>
+                        </ShadcnTableCell>
+                        {/* <ShadcnTableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleApproveRequest(req.id)}
+                              className="h-8 px-3 bg-green-600 hover:bg-green-700"
+                            >
+                              <CheckSquare className="mr-1 h-3 w-3" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectRequest(req.id)}
+                              className="h-8 px-3 border-red-500 text-red-600 hover:bg-red-50"
+                            >
+                              <Square className="mr-1 h-3 w-3" />
+                              Reject
+                            </Button>
+                          </div>
+                        </ShadcnTableCell> */}
+                      </ShadcnTableRow>
+                    ))
+                ) : (
+                  <ShadcnTableRow>
+                    <ShadcnTableCell colSpan="6" className="h-24 text-center">
+                      No pending requests found.
+                    </ShadcnTableCell>
+                  </ShadcnTableRow>
+                )}
+              </ShadcnTableBody>
+            </ShadcnTable>
+          </div>
+        </CardContent>
+      </Card>
+      )}
       {/* Edit Employee Modal */}
       {currentEmployee && (
         <Dialog

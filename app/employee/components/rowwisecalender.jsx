@@ -1,9 +1,16 @@
 import React from 'react';
 import { format, addDays, subDays, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CheckCircle, Clock, XCircle, Briefcase } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Briefcase, Calendar as CalendarIcon } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
-const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) => {
+const RowWiseCalendar = ({ attendanceData = [], selectedDate, onDateSelect }) => {
   const today = new Date();
   
   // Create an array of 7 days with today in the center (index 3)
@@ -52,18 +59,45 @@ const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) =
   return (
     <div className="w-full px-1 sm:px-4">
       <div className="max-w-full mx-auto">
-      {/* Day labels */}
+        {/* Date Picker Button - Enhanced for better mobile responsiveness */}
+        <div className="flex justify-end mb-4">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[140px] sm:w-[160px] justify-start text-left font-normal text-xs sm:text-sm",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                {selectedDate ? format(selectedDate, "MMM d") : <span>Pick date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={onDateSelect}
+                initialFocus
+                className="rounded-md border"
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        {/* Day labels - Enhanced for better mobile display */}
       <div className="flex justify-between mb-2 w-full">
         {dates.map((date, index) => (
           <div key={index} className="flex-1 text-center">
-            <span className="text-xs sm:text-sm text-gray-500 font-medium">
+              <span className="text-[10px] sm:text-xs md:text-sm text-gray-500 font-medium">
               {format(date, 'EEE')}
             </span>
           </div>
         ))}
       </div>
       
-      {/* Date row */}
+        {/* Date row - Enhanced for better mobile display */}
       <div className="flex justify-between gap-0.5 sm:gap-2 w-full">
         {dates.map((date, index) => {
           const attendanceRecord = getAttendanceForDate(date);
@@ -71,8 +105,6 @@ const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) =
           const styles = status ? statusColors[status] : null;
           const isToday = isSameDay(date, today);
           const isSelected = selectedDate && isSameDay(date, selectedDate);
-
-         l 
           
           return (
             <button
@@ -81,7 +113,7 @@ const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) =
               onClick={() => onDateSelect && onDateSelect(date)}
               className={cn(
                 "flex-1 flex flex-col items-center justify-center rounded-lg border-2 relative transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
-                "h-8 w-8 text-[10px] sm:h-12 sm:w-12 sm:text-xs md:h-16 md:w-16 md:text-sm min-w-0", // Responsive sizing for all breakpoints
+                  "h-7 w-7 text-[10px] sm:h-10 sm:w-10 sm:text-xs md:h-14 md:w-14 md:text-sm min-w-0", // Adjusted sizes for better mobile display
                 "touch-manipulation select-none",
                 isToday && "ring-2 ring-blue-500 ring-offset-1",
                 isSelected && "bg-blue-600 text-white border-blue-600",
@@ -95,7 +127,7 @@ const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) =
             >
               {/* Date number */}
               <span className={cn(
-                "text-xs sm:text-sm font-semibold leading-none",
+                  "text-[10px] sm:text-xs md:text-sm font-semibold leading-none",
                 isToday && !isSelected && "text-blue-600",
                 isSelected && "text-white"
               )}>
@@ -130,11 +162,11 @@ const RowWiseCalendar = ({ attendanceData = [],  selectedDate, onDateSelect }) =
         })}
       </div>
       
-      {/* Legend - Responsive layout */}
-      <div className="mt-3 sm:mt-4">
-        <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-4 text-xs sm:text-sm whitespace-nowrap">
+        {/* Legend - Enhanced for better mobile display */}
+        <div className="mt-2 sm:mt-3">
+          <div className="flex flex-wrap justify-center items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs md:text-sm whitespace-nowrap">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500" />
             <span className="text-gray-600">Today</span>
           </div>
           {Object.entries(statusColors).map(([status, style]) => (

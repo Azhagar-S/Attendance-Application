@@ -96,76 +96,91 @@ const SelectedDateDetails = ({ selectedDate, attendanceData }) => {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <CalendarIcon className="h-5 w-5" />
-          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+          {selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : "Attendance Details"}
         </CardTitle>
         <CardDescription>
-          Attendance details for selected date
+          {selectedDate ? "Details for the selected date" : "Select a date to see attendance."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {selectedAttendance && typeof selectedAttendance === 'object' ? (
-          <div className="space-y-4">
-            {/* Status Badge */}
-            <div className={cn(
-              "flex items-center gap-3 p-4 rounded-lg border",
-              getStatusColor(selectedAttendance?.status)
-            )}>
-              {getStatusIcon(selectedAttendance?.status)}
-              <div className="flex-1">
-                <div className="font-semibold text-lg">
-                  {selectedAttendance?.status || 'Unknown'}
+        {selectedDate ? (
+          // If a date is selected, show attendance details or "No Record"
+          selectedAttendance ? (
+            <div className="space-y-4">
+              {/* Status Badge */}
+              <div className={cn(
+                "flex items-center gap-3 p-4 rounded-lg border",
+                getStatusColor(selectedAttendance?.status)
+              )}>
+                {getStatusIcon(selectedAttendance?.status)}
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">
+                    {selectedAttendance?.status || 'Unknown'}
+                  </div>
+                  <div className="text-sm opacity-80">
+                    Attendance Status
+                  </div>
                 </div>
-                <div className="text-sm opacity-80">
-                  Attendance Status
+              </div>
+
+              {/* Time Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {selectedAttendance?.checkInTime && (
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-green-700 mb-1">
+                      <ClockIcon className="h-4 w-4" />
+                      <span className="font-medium">Check In</span>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {selectedAttendance?.checkInTime}
+                    </div>
+                  </div>
+                )}
+
+                {selectedAttendance?.checkOutTime && (
+                  <div className="bg-white border rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-red-700 mb-1">
+                      <ClockIcon className="h-4 w-4" />
+                      <span className="font-medium">Check Out</span>
+                    </div>
+                    <div className="text-lg font-semibold">
+                      {selectedAttendance?.checkOutTime}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <CalendarIcon className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-700 mb-2">
+                No Attendance Record
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {`No attendance was recorded for ${format(selectedDate, 'MMMM d, yyyy')}`}
+              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center justify-center gap-2 text-gray-600">
+                  <XCircle className="h-5 w-5" />
+                  <span className="font-medium">Absent</span>
                 </div>
               </div>
             </div>
-
-            {/* Time Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedAttendance?.checkInTime && (
-                <div className="bg-white border rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-green-700 mb-1">
-                    <ClockIcon className="h-4 w-4" />
-                    <span className="font-medium">Check In</span>
-                  </div>
-                  <div className="text-lg font-semibold">
-                    {selectedAttendance?.checkInTime}
-                  </div>
-                </div>
-              )}
-
-              {selectedAttendance?.checkOutTime && (
-                <div className="bg-white border rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-red-700 mb-1">
-                    <ClockIcon className="h-4 w-4" />
-                    <span className="font-medium">Check Out</span>
-                  </div>
-                  <div className="text-lg font-semibold">
-                    {selectedAttendance?.checkOutTime}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          )
         ) : (
-          // No attendance record for selected date or error
+          // If no date is selected, show a placeholder
           <div className="text-center py-8">
             <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
               <CalendarIcon className="h-8 w-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-700 mb-2">
-              No Attendance Record
+              Select a Date
             </h3>
             <p className="text-sm text-gray-500 mb-4">
-              {selectedDate ? `No attendance was recorded for ${format(selectedDate, 'MMMM d, yyyy')}` : 'Please select a date.'}
+              Click on a date in the calendar to view attendance details.
             </p>
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center justify-center gap-2 text-gray-600">
-                <XCircle className="h-5 w-5" />
-                <span className="font-medium">Absent</span>
-              </div>
-            </div>
           </div>
         )}
       </CardContent>
@@ -186,6 +201,19 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
   const [profile, setProfile] = useState({
     tracingMethod: "",
   });
+  const [realAbsent, setRealAbsent] = useState(false);
+  const handleDateSelect = (date) => {
+    // This prevents deselection. If a date is clicked when already selected,
+    // the calendar passes `undefined`. We check for that and do nothing,
+    // keeping the original date selected.
+    if (date) {
+      setSelectedDate(date);
+    }
+  };
+
+  useEffect(() => {
+         console.log("selectedDate",selectedDate)
+  },[selectedDate])
 
   const handleAttendanceMarked = (status) => {
     setAttendanceStatusMsg(
@@ -209,6 +237,10 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
             ...doc.data(),
           });
         });
+
+        if(querySnapshot.empty){
+          setRealAbsent(true);
+        }
 
         // Debug: Log the employee ID we're querying with
         console.log("Fetching user data for employeeId:", employeeId);
@@ -318,12 +350,12 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
       <CardContent className="space-y-4">
         {!isMobileView ? ( // Desktop View
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Calendar Section */}
-            <div className="lg:col-span-1">
+            {/* Calendar Section - Enhanced for better responsiveness */}
+            <div className="lg:col-span-1 bg-white rounded-lg border p-2 sm:p-3">
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={setSelectedDate}
+                onSelect={handleDateSelect}
                 className="rounded-md border shadow mx-auto"
                 initialFocus
                 defaultMonth={selectedDate}
@@ -359,7 +391,7 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
               />
             </div>
 
-            {/* Selected Date Details Section */}
+            {/* Selected Date Details Section - Enhanced for better responsiveness */}
             <div className="lg:col-span-2">
               <SelectedDateDetails 
                 selectedDate={selectedDate}
@@ -387,6 +419,7 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
                   </p>
                 </div>
               )}
+              
               {attendanceStatusMsg && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4">
                   <p className="text-green-600 font-medium">
@@ -397,25 +430,27 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
             </div>
           </div>
         ) : (
-          // Mobile View
-          <div className="mt-4 space-y-4 px-2 sm:px-0">
+          // Mobile View - Enhanced for better responsiveness
+          <div className="mt-4 space-y-4">
             {/* Row-wise Calendar */}
-            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
               <RowWiseCalendar 
                 attendanceData={attendanceData}
                 selectedDate={selectedDate}
-                onDateSelect={setSelectedDate}
+                onDateSelect={handleDateSelect}
               />
             </div>
             
-            {/* Selected Date Details for Mobile */}
-            <SelectedDateDetails 
-              selectedDate={selectedDate}
-              attendanceData={attendanceData}
-            />
+            {/* Selected Date Details for Mobile - Enhanced spacing */}
+            <div className="mt-4">
+              <SelectedDateDetails 
+                selectedDate={selectedDate}
+                attendanceData={attendanceData}
+              />
+            </div>
         
             {/* Attendance Marking Section */}
-            <div className="mx-2 sm:mx-0">
+            <div className="mt-4">
               {profile.tracingMethod === "Daily Attendance" ? (
                 <DailyAttendance
                   onMarkSuccess={handleAttendanceMarked}
@@ -429,11 +464,11 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
                   admin_uid={admin_uid}
                 />
               ) : (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-                  <p className="text-sm sm:text-base text-red-600 font-medium">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-600 font-medium">
                     ⚠️ Attendance tracing method not configured
                   </p>
-                  <p className="text-xs sm:text-sm text-red-500 mt-1">
+                  <p className="text-xs text-red-500 mt-1">
                     Please contact your administrator to set up attendance tracking.
                   </p>
                 </div>
@@ -442,10 +477,10 @@ export default function AttendanceHistoryTab({ employeeId, user }) {
         
             {/* Status Message */}
             {attendanceStatusMsg && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 mx-2 sm:mx-0">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <p className="text-sm sm:text-base text-green-700 font-medium">
+                  <p className="text-sm text-green-700 font-medium">
                     {attendanceStatusMsg}
                   </p>
                 </div>

@@ -479,6 +479,8 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [user, setUser] = useState(null);
 
+  const [realAbsent, setRealAbsent] = useState(false);
+
   const [currentTime , setCurrentTime] = useState(new Date());
   
 
@@ -586,6 +588,10 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
           where("employeeId", "==", employeeId),
           where("date", "==", date_type),
         );
+
+        if(attendanceQuery.empty){
+          setRealAbsent(true);
+        }
         const attendanceSnapshot = await getDocs(attendanceQuery);
         const attendanceRecords = [];
         attendanceSnapshot.forEach((doc) => {
@@ -634,6 +640,8 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
       // Get the user document reference and data
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
+
+      
 
       // Create new attendance document in 'attendance' collection
       const newAttendanceRef = doc(collection(db, "attendance"));
