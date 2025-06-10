@@ -42,8 +42,8 @@ const initialDailySettings = {
   defaultStartTime: "09:00",
   defaultEndTime: "17:00",
   workingHours: "8",
-  earlyCheckInAllowed: 30,
-  lateCheckOutAllowed: 30,
+  earlyCheckInAllowed: "30",
+  lateCheckOutAllowed: "30",
 };
 
 export default function AdminSettingsPage() {
@@ -53,8 +53,8 @@ export default function AdminSettingsPage() {
     meetingTime: "",
     meetingDate: new Date().toISOString().split('T')[0],
     meetingDuration: "",
-    earlyCheckInAllowed: "",
-    lateCheckInAllowed: "",
+    earlyCheckInAllowed: "30",
+    lateCheckOutAllowed: "30",
     attendees: []
   });
 
@@ -332,8 +332,8 @@ export default function AdminSettingsPage() {
         defaultStartTime: dailySettings.defaultStartTime,
         defaultEndTime: dailySettings.defaultEndTime,
         workingHours: dailySettings.workingHours,
-        earlyCheckInAllowed: Number(dailySettings.earlyCheckInAllowed),
-        lateCheckOutAllowed: Number(dailySettings.lateCheckOutAllowed),
+        earlyCheckInAllowed: dailySettings.earlyCheckInAllowed,
+        lateCheckOutAllowed: dailySettings.lateCheckOutAllowed,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: "active",
@@ -390,8 +390,8 @@ export default function AdminSettingsPage() {
         meetingTitle: meetingSettings.meetingTitle,
         meetingDate: meetingSettings.meetingDate,
         meetingTime: meetingSettings.meetingTime,
-        meetingDuration: Number(meetingSettings.meetingDuration) || 1,
-        earlyCheckInAllowed: Number(meetingSettings.earlyCheckInAllowed) || 15,
+        meetingDuration: meetingSettings.meetingDuration,
+        earlyCheckInAllowed: meetingSettings.earlyCheckInAllowed,
         attendees: meetingSettings.attendees || [],
         adminUid: currentAdminUid,
         createdBy: user.uid,
@@ -406,8 +406,7 @@ export default function AdminSettingsPage() {
         meetingTitle: "",
         meetingDate: new Date().toISOString().split('T')[0],
         meetingDuration: 1,
-        earlyCheckInAllowed: 15,
-        lateCheckInAllowed: 15,
+        earlyCheckInAllowed: "15",
         attendees: []
       });
 
@@ -777,6 +776,20 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+
+                  <div className="space-y-2 w-full">
+                    <LabelSettings htmlFor="earlyCheckInAllowed">
+                      Early Check-in Allowance (minutes)
+                    </LabelSettings>
+                    <InputSettings
+                      id="earlyCheckInAllowed"
+                      name="earlyCheckInAllowed"
+                      type="text"
+                      value={meetingSettings.earlyCheckInAllowed}
+                      onChange={handleMeetingSettingChange}
+                    />
+                  </div>
                   <div className="space-y-2 w-full">
                     <LabelSettings htmlFor="meetingDuration">
                       Default Meeting Duration (hours)

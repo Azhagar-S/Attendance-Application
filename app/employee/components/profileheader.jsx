@@ -412,15 +412,23 @@ export function DailyAttendance({
   const isLateCheckIn = (time) => {
     if (!attendanceSettings.defaultStartTime) return false;
 
-    const defaultStartTime = parse(
-      attendanceSettings.defaultStartTime,
-      "HH:mm",
-      new Date()
-    );
-    const actualCheckIn = parse(time, "hh:mm a", new Date());
-    const diff = differenceInMinutes(actualCheckIn, defaultStartTime);
+    // const defaultStartTime = parse(
+    //   attendanceSettings.defaultStartTime,
+    //   "HH:mm",
+    //   new Date()
+    // );
+    // const actualCheckIn = parse(time, "hh:mm a", new Date());
+    // const diff = differenceInMinutes(actualCheckIn, defaultStartTime);
 
-    return diff > 0 && diff > attendanceSettings.lateCheckInAllowed;
+    // return diff > 0 && diff > attendanceSettings.lateCheckInAllowed;
+
+
+    const earlyCheckInAllowed = attendanceSettings.earlyCheckInAllowed;
+      
+       const defaultTime = attendanceSettings.defaultStartTime;
+       const actualCheckIn = parse(time, "hh:mm a", new Date());
+       const diff = differenceInMinutes(actualCheckIn, defaultTime);
+       return diff > earlyCheckInAllowed;
   };
 
   // isEarlyCheckIn: True if check-in is before the official start time - grace period.
@@ -475,29 +483,39 @@ export function DailyAttendance({
         throw new Error("User not authenticated or phone number not available");
       }
 
+      // const phoneNumber = user.phoneNumber.slice(3);
+      // const dateToday = format(new Date(), "yyyy-MM-dd");
+      // const now = new Date();
+      // const nowTime = format(now, "hh:mm a");
+
+      // const defaultStartTime = parse(
+      //   attendanceSettings.defaultStartTime,
+      //   "HH:mm",
+      //   new Date()
+      // );
+      // const diffInMinutes = differenceInMinutes(now, defaultStartTime);
+
+      // let statusToSave = "present";
+      // if (isAbsent(nowTime)) {
+      //   statusToSave = "absent";
+      // } else if (diffInMinutes > (attendanceSettings.lateCheckInAllowed || 0)) {
+      //   statusToSave = "late";
+      // } else if (diffInMinutes < -(attendanceSettings.earlyCheckInAllowed || 0)) {
+      //   statusToSave = "early";
+      // }
+
+      // const isLate = statusToSave === "late";
+      // const isEarly = statusToSave === "early";
+
+
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
-      const now = new Date();
-      const nowTime = format(now, "hh:mm a");
 
-      const defaultStartTime = parse(
-        attendanceSettings.defaultStartTime,
-        "HH:mm",
-        new Date()
-      );
-      const diffInMinutes = differenceInMinutes(now, defaultStartTime);
+      const nowTime = format(new Date(), "hh:mm");
+      const isLate = isLateCheckIn(nowTime);
 
-      let statusToSave = "present";
-      if (isAbsent(nowTime)) {
-        statusToSave = "absent";
-      } else if (diffInMinutes > (attendanceSettings.lateCheckInAllowed || 0)) {
-        statusToSave = "late";
-      } else if (diffInMinutes < -(attendanceSettings.earlyCheckInAllowed || 0)) {
-        statusToSave = "early";
-      }
 
-      const isLate = statusToSave === "late";
-      const isEarly = statusToSave === "early";
+      const isAbsent = isAbsent(nowTime);
 
       // Query the users collection to find the user document
       const usersRef = collection(db, "users");
@@ -511,6 +529,8 @@ export function DailyAttendance({
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
 
+      const Statuss = isLate ? "late" : "present";
+
       // Create new attendance document in 'attendance' collection
       const attendanceRecord = {
         employeeId: userData.uid,
@@ -518,7 +538,7 @@ export function DailyAttendance({
         date: dateToday,
         checkInTime: nowTime,
         checkOutTime: null,
-        status: statusToSave,
+        status: Statuss,
         location: currentLocation || "Office Geo",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -541,9 +561,10 @@ export function DailyAttendance({
       await addDoc(collection(db, "attendance"), attendanceRecord);
 
       setIsCheckedIn(true);
-      setStatus(statusToSave);
+      setStatus(Statuss);
       onMarkSuccess("Checked In");
-      const statusMessage = isEarly ? "Early" : isLate ? "Late" : "On time";
+      // const statusMessage = isEarly ? "Early" : isLate ? "Late" : "On time";
+      const statusMessage = Statuss === "late" ? "Late" : "On time";
       sonnerToast.success(`Checked In Successfully! (${statusMessage})`, {
         description: `Time: ${nowTime}, Location: ${
           currentLocation || "Office Geo"

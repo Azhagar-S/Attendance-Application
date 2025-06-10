@@ -20,6 +20,9 @@ import {
 import { signOut } from "firebase/auth";
 import { auth } from "@/app/firebase/config";
 import { toast } from 'sonner';
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/app/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
 
 
 // Dummy data for testing
@@ -49,6 +52,7 @@ export default function SuperAdminPanelLayout({ children }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [superAdminUsers, setSuperAdminUsers] = useState([]);
   
   // Update time every second
   useEffect(() => {
@@ -58,16 +62,43 @@ export default function SuperAdminPanelLayout({ children }) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(()=>{
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        return router.push("/superadmin/auth");
+      }
+      console.log(user)
+      const fetchSuperAdminUsers = async () => {
+        const superAdminUsersRef = collection(db, "superadmin");
+        const q = query(superAdminUsersRef, where("email", "==", user.email));
+        const querySnapshot = await getDocs(q);
+        const adminUsers = querySnapshot.docs.map((doc) => doc.data());
+        setSuperAdminUsers(adminUsers);
+      };
+
+      fetchSuperAdminUsers();
+    });
+    return () => unsubscribe();
+  },[])
+
    // Check if we're on mobile when component mounts and when window resizes
    useEffect(() => {
+
+   
+    
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768);
       // If we're on mobile, ensure sidebar is expanded when we switch back to desktop
       if (window.innerWidth >= 768) {
         setSidebarCollapsed(false);
       }
+
+
+     
     };
 
+
+    
     // Initial check
     checkIfMobile();
 
@@ -78,6 +109,8 @@ export default function SuperAdminPanelLayout({ children }) {
     return () => window.removeEventListener("resize", checkIfMobile);
   }, []);
 
+
+ 
   // Format date and time
   const formattedDate = currentTime.toLocaleDateString('en-US', {
     weekday: 'short',

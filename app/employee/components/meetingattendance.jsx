@@ -598,7 +598,7 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
           const data = doc.data();
           attendanceRecords.push({
             meetingId: data.meetingId || "", // Ensure meetingId is stored in attendance
-            checkInTime: data.checkInTime,
+            checkInTime: data.meetingTime,
             status: data.status
           });
         });
@@ -611,11 +611,20 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
   },[])
 
   const isLateCheckIn = (time) => {
-      const shiftStart = parse("09:00", "HH:mm", new Date());
-      const actualCheckIn = parse(time, "hh:mm a", new Date());
+       const meeting = todaysMeetings.find(m => m.id === selectedMeeting.id);
+       const earlyCheckInAllowed = meeting.earlyCheckInAllowed;
+       const lateCheckInAllowed = meeting.lateCheckInAllowed;
+       const meetingTime = meeting.meetingTime;
+       const actualCheckIn = parse(time, "hh:mm a", new Date());
+       const diff = differenceInMinutes(actualCheckIn, meetingTime);
+       return diff > earlyCheckInAllowed;
+
+
+      // const shiftStart = parse("09:00", "HH:mm", new Date());
+      // const actualCheckIn = parse(time, "hh:mm a", new Date());
   
-      const diff = differenceInMinutes(actualCheckIn, shiftStart);
-      return diff > 30;
+      // const diff = differenceInMinutes(actualCheckIn, shiftStart);
+      // return diff > 30;
     };
 
   const handleCheckIn = async () => {
@@ -627,6 +636,8 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
       const nowTime = format(new Date(), "hh:mm");
 
       const isLate = isLateCheckIn(nowTime);
+
+      console.log("isLate--->",isLate);
 
       // Query the users collection to find the user document
       const usersRef = collection(db, "users");
