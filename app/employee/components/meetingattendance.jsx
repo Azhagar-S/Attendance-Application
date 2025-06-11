@@ -615,9 +615,12 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
        const earlyCheckInAllowed = meeting.earlyCheckInAllowed;
        const lateCheckInAllowed = meeting.lateCheckInAllowed;
        const meetingTime = meeting.meetingTime;
-       const actualCheckIn = parse(time, "hh:mm a", new Date());
-       const diff = differenceInMinutes(actualCheckIn, meetingTime);
-       return diff > earlyCheckInAllowed;
+
+       const convertMeetingTime = parse(meetingTime, "HH:mm", new Date());
+       const actualCheckIn = parse(time, "HH:mm", new Date());
+       const diff = differenceInMinutes(actualCheckIn, convertMeetingTime);
+       console.log("diff", diff)
+       return diff > (earlyCheckInAllowed || 0);
 
 
       // const shiftStart = parse("09:00", "HH:mm", new Date());

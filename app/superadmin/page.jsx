@@ -21,6 +21,15 @@ const page = () => {
        return router.push('/superadmin/dashboard')
       }
     })
+
+
+    const fetchAdminUsers = async () => {
+      const adminUsersRef = collection(db, "users");
+      const q = query(adminUsersRef, where("email", "==", user.email));
+      const querySnapshot = await getDocs(q);
+      const adminUsers = querySnapshot.docs.map((doc) => doc.data());
+      setAdminUsers(adminUsers);
+    };
   
     return () => unsubscribe();
   }, [auth])

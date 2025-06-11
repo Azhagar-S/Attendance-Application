@@ -601,6 +601,22 @@ export default function EmployeeManagementPage() {
                       required
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="department-new" className="mb-2">
+                      Department
+                    </Label>
+                    <Input
+                      id="department-new"
+                      name="department"
+                      value={newEmployee.department}
+                      onChange={(e) =>
+                        setNewEmployee((prev) => ({
+                          ...prev,
+                          department: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                 
                   {/* <div>
                     <Label htmlFor="tracingMethod-new" className="mb-2">

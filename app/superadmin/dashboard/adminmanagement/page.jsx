@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit, UserPlus, PlusCircle } from "lucide-react";
+import { Plus, Trash2, Edit, UserPlus, PlusCircle, Square } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -59,6 +59,7 @@ export default function AdminManagementPage() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [adminRequests, setAdminRequests] = useState([]);
 
 
   // Filtered Admins
@@ -96,7 +97,27 @@ useEffect(()=>{
     return () => unsubscribe();
 }, [user]);
  
+useEffect(() => {
+    const fetchAdminRequests = async () => {
+      if (!user) return;
+      try {
+        const requestsRef = collection(db, 'request');
+        // Assuming superadmin sees all admin requests. If it needs to be filtered by who created it,
+        // you would add a where clause like: where('createdBy', '==', user.uid)
+        const q = query(requestsRef, where('role', '==', 'admin'));
+        const querySnapshot = await getDocs(q);
+        const requestsList = querySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(req => !req.status || req.status === 'pending'); // Show only pending requests
+        setAdminRequests(requestsList);
+      } catch (error) {
+        console.error("Error fetching admin requests:", error);
+        toast.error("Failed to load pending admin requests.");
+      }
+    };
 
+    fetchAdminRequests();
+  }, [user, isCreateModalOpen]); // Re-fetch when user changes or a new admin is created
 
 
   const handleCreateAdmin = async(e) => {
@@ -463,6 +484,68 @@ useEffect(()=>{
             </Table>
         </CardContent>
       </Card>
+
+      {adminRequests.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Pending Admin Requests ({adminRequests.length})
+            <span className="text-sm font-normal text-muted-foreground ml-2">
+              - Admins waiting for approval
+            </span>
+          </CardTitle>
+          <CardDescription>
+            Review and approve admin requests before they can manage their organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px]">No. Admins</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    Request Date
+                  </TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {adminRequests.map((req, index) => (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-mono text-xs">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {req.phone || "N/A"}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {req.companyname || "Unassigned"}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {req.createdAt
+                            ? new Date(req.createdAt.seconds * 1000).toLocaleDateString()
+                            : "N/A"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className="border-yellow-500 text-yellow-700 bg-yellow-100 text-xs whitespace-nowrap"
+                          >
+                            <Square className="mr-1 h-3 w-3" />
+                            Pending
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      )}
 
       {/* Edit Admin Modal */}
       {currentAdmin && (

@@ -32,7 +32,7 @@ export function CreateEmployeeForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isuser , setUser] = useState(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
-  
+  const [department, setDepartment] = useState("");
   const router = useRouter();
 
 
@@ -52,13 +52,17 @@ export function CreateEmployeeForm() {
 
     return () => unsubscribe();
   }, [auth])
+
+
+
+
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     // Basic validation (you'd want more robust validation in a real app, e.g., with Zod)
-    if (!name || !email || !phone ) {
+    if (!name || !email || !phone || !department) {
       toast({
         variant: "destructive",
         title: "Missing Information",
@@ -92,7 +96,7 @@ export function CreateEmployeeForm() {
       if (!adminUid) {
         throw new Error("No admin UID found in registration request");
       }
-      
+ 
       // Create the new employee document
       const newDocRef = doc(collection(db, "users"));
       
@@ -102,6 +106,7 @@ export function CreateEmployeeForm() {
         phone: phone,
         adminuid: adminUid,  // Use the adminuid from the request
         companyuid: companyuid,
+        department: department,
         role: "employee",
         isNew: false,
         isActive: true,
@@ -110,7 +115,9 @@ export function CreateEmployeeForm() {
         lastUpdated: serverTimestamp(),
         uid: newDocRef.id
       });
-      
+
+      await updateDoc(doc(db, "request", requestSnapshot.docs[0].id), { isNew: false });
+
       // Optionally, you might want to update the request to mark it as processed
       // await updateDoc(requestSnapshot.docs[0].ref, { processed: true });
     
@@ -157,17 +164,7 @@ export function CreateEmployeeForm() {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="e.g., admin@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+         
           <div className="space-y-2 mb-8">
             <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
             <Input
@@ -179,7 +176,31 @@ export function CreateEmployeeForm() {
               required
             />
           </div>
-         
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="e.g., admin@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="department">Department <span className="text-red-500">*</span></Label>
+            <Input
+              id="department"
+              type="text"
+              placeholder="e.g., IT, HR, Sales, etc."
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              required
+            />
+          </div>
+
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={isLoading}>

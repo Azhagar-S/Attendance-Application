@@ -122,7 +122,6 @@ export default function SuperAdminPanelLayout({ children }) {
   const formattedTime = currentTime.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: true
   });
 
@@ -267,10 +266,10 @@ export default function SuperAdminPanelLayout({ children }) {
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer" onClick={() => router.push('/superadmin/dashboard/system-settings')}>
+                  {/* <DropdownMenuItem className="cursor-pointer" onClick={() => router.push('/superadmin/dashboard/system-settings')}>
                     <SettingsIcon className="mr-2 h-4 w-4" />
                     <span >Settings</span>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                 
                   <DropdownMenuItem 
                     className="cursor-pointer text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"

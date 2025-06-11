@@ -119,6 +119,13 @@ export function DailyAttendance({
     status: null,
   });
 
+  const [locationSettings, setLocationSettings] = useState({
+    latitude: null,
+    longitude: null,
+    radius: null,
+  });
+
+
   // Fetch attendance settings
   useEffect(() => {
     const fetchAttendanceSettings = async () => {
@@ -134,6 +141,26 @@ export function DailyAttendance({
 
         const userData = userSnapshot.docs[0].data();
         const adminUid = userData.adminuid;
+       
+
+
+        const q = query(collection(db, "users"), where("uid", "==", adminUid));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) return;
+
+        const adminData = snapshot.docs[0].data();
+        console.log("adminData", adminData);
+
+        const officeLocation = adminData.officeLocation;
+        console.log("officeLocation", officeLocation);
+        if (adminData.officeLocation) {
+          setLocationSettings({
+            latitude: officeLocation.latitude,
+            longitude: officeLocation.longitude,
+            radius: officeLocation.radius || 50,
+          });
+        }
 
         // Fetch daily attendance settings
         const dailySettingsRef = collection(db, "Daily_attendance");
@@ -164,6 +191,9 @@ export function DailyAttendance({
 
     fetchAttendanceSettings();
   }, [user]);
+
+
+
 
   // Fetch attendance status on component mount
   useEffect(() => {
@@ -408,28 +438,39 @@ export function DailyAttendance({
     setIsDialogOpen(true);
   };
 
+   // Haversine formula to calculate distance between two points in meters
+   const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    console.log("distance", R * c)
+    return R * c; // Distance in meters
+  };
+
   // isLateCheckIn: True if check-in is after the official start time + grace period.
   const isLateCheckIn = (time) => {
     if (!attendanceSettings.defaultStartTime) return false;
-
-    // const defaultStartTime = parse(
-    //   attendanceSettings.defaultStartTime,
-    //   "HH:mm",
-    //   new Date()
-    // );
-    // const actualCheckIn = parse(time, "hh:mm a", new Date());
-    // const diff = differenceInMinutes(actualCheckIn, defaultStartTime);
-
-    // return diff > 0 && diff > attendanceSettings.lateCheckInAllowed;
-
-
-    const earlyCheckInAllowed = attendanceSettings.earlyCheckInAllowed;
       
        const defaultTime = attendanceSettings.defaultStartTime;
-       const actualCheckIn = parse(time, "hh:mm a", new Date());
-       const diff = differenceInMinutes(actualCheckIn, defaultTime);
-       return diff > earlyCheckInAllowed;
+       const convertDefaultTime = parse(defaultTime, "HH:mm", new Date());
+       const actualCheckIn = parse(time, "HH:mm", new Date());
+
+       const diff = differenceInMinutes(actualCheckIn, convertDefaultTime);
+       
+       // a positive diff means check-in is after default time, hence late
+       console.log("diff", diff)
+       return diff > (attendanceSettings.lateCheckInAllowed || 0);
   };
+
+
+
 
   // isEarlyCheckIn: True if check-in is before the official start time - grace period.
   const isEarlyCheckIn = (time) => {
@@ -440,7 +481,7 @@ export function DailyAttendance({
       "HH:mm",
       new Date()
     );
-    const actualCheckIn = parse(time, "hh:mm a", new Date());
+    const actualCheckIn = parse(time, "HH:mm", new Date());
     const diff = differenceInMinutes(defaultStartTime, actualCheckIn);
 
     return diff > 0 && diff > attendanceSettings.earlyCheckInAllowed;
@@ -453,7 +494,7 @@ export function DailyAttendance({
       "HH:mm",
       new Date()
     );
-    const currentTime = parse(time, "hh:mm a", new Date());
+    const currentTime = parse(time, "HH:mm", new Date());
     return currentTime > checkInEndTime;
   };
 
@@ -507,15 +548,35 @@ export function DailyAttendance({
       // const isLate = statusToSave === "late";
       // const isEarly = statusToSave === "early";
 
+      try {
+
+         const distance = calculateDistance(locationSettings.latitude, locationSettings.longitude, geoLocation.latitude, geoLocation.longitude);
+         console.log("distance office", locationSettings.radius)
+         if (distance > locationSettings.radius) {
+          sonnerToast.error("Check-in Failed", {
+            description:
+              "You are not in the office location.",
+          });
+          return;
+         }
+
+      } catch (error) {
+        sonnerToast.error("Check-in Failed", {
+          description:
+            error.message || "Failed to process check-in. Please try again.",
+        });
+        return;
+      }
+
 
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
 
-      const nowTime = format(new Date(), "hh:mm");
+      const nowTime = format(new Date(), "HH:mm");
       const isLate = isLateCheckIn(nowTime);
 
 
-      const isAbsent = isAbsent(nowTime);
+      const isAbsent_ = isAbsent(nowTime);
 
       // Query the users collection to find the user document
       const usersRef = collection(db, "users");
@@ -530,6 +591,7 @@ export function DailyAttendance({
       const userData = userDoc.data();
 
       const Statuss = isLate ? "late" : "present";
+      const absentStatus = isAbsent_ && "absent";
 
       // Create new attendance document in 'attendance' collection
       const attendanceRecord = {
@@ -538,7 +600,7 @@ export function DailyAttendance({
         date: dateToday,
         checkInTime: nowTime,
         checkOutTime: null,
-        status: Statuss,
+        status: Statuss || absentStatus,
         location: currentLocation || "Office Geo",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -591,13 +653,13 @@ export function DailyAttendance({
 
   const handleCheckOut = async () => {
     setIsLoading(true);
-    const nowTime = format(new Date(), "hh:mm a");
 
     try {
       if (!user || !user.phoneNumber) {
         throw new Error("User not authenticated or phone number not available");
       }
-
+      
+      const nowTime = format(new Date(), "HH:mm");
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
 

@@ -5,8 +5,11 @@ import { Users, UserCheck, UserX, Clock, BarChart, PieChart, LineChart as LineCh
 import { auth } from "@/app/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect , useState } from "react";
 import { toast } from 'sonner'; 
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/app/firebase/config";
+
 
 // Placeholder for actual chart components
 // You would use a library like Recharts, Chart.js, or Nivo
@@ -19,11 +22,49 @@ const PlaceholderChart = ({ title }) => (
 // Placeholder for stats components
 const DashboardStats = () => {
   // Mock data - fetch this from your backend/Firebase
-  const stats = [
-    { title: "Total Admins", value: "12", icon: Users, color: "text-blue-500" },
-    { title: "Total Active Employees", value: "345", icon: UserCheck, color: "text-green-500" },
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminCount, setAdminCount] = useState(0);
+  const [activeEmployees, setActiveEmployees] = useState([]);
+  const [activeEmployeesCount, setActiveEmployeesCount] = useState(0);
+  const [stats, setStats] = useState([
+    { title: "Total Admins", value: adminCount, icon: Users, color: "text-blue-500" },
+    { title: "Total Active Employees", value: activeEmployeesCount, icon: UserCheck, color: "text-green-500" },
     
-  ];
+  ]);
+
+
+
+  useEffect(()=>{
+    const fetchAdminUsers = async () => {
+      const adminUsersRef = collection(db, "users");
+      const q = query(adminUsersRef, where("email", "==", user.email));
+      const querySnapshot = await getDocs(q);
+      const adminUsers = querySnapshot.docs.map((doc) => doc.data());
+      setAdminUsers(adminUsers);
+
+      adminUsers.forEach(user => {
+        const totalAdmins = adminUsers.length;
+        const totalActiveEmployees = adminUsers.filter(user => user.status === "active").length;
+         setAdminCount(totalAdmins);
+      });
+    };
+    fetchAdminUsers();
+
+    const fetchActiveEmployees = async () => {
+      const activeEmployeesRef = collection(db, "users");
+      const q = query(activeEmployeesRef, where("status", "==", "active"));
+      const querySnapshot = await getDocs(q);
+      const activeEmployees = querySnapshot.docs.map((doc) => doc.data());
+      setActiveEmployees(activeEmployees);
+
+      activeEmployees.forEach(user => {
+        const totalActiveEmployees = activeEmployees.length;
+        setActiveEmployeesCount(totalActiveEmployees);
+      });
+    };
+    fetchActiveEmployees();
+  },[])
+
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

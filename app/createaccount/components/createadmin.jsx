@@ -24,7 +24,7 @@ import { useRouter } from "next/navigation";
 import { getDocs, query, where } from "firebase/firestore";
 
 
-
+ 
 export function CreateAdminForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -72,7 +72,7 @@ export function CreateAdminForm() {
     setIsLoading(true);
 
     // Basic validation (you'd want more robust validation in a real app, e.g., with Zod)
-    if (!name || !email  || !attendanceMethod) {
+    if (!name || !email  || !attendanceMethod ) {
       toast.error("Missing Information: Please fill out all required fields.");
       setIsLoading(false);
       return;
@@ -87,11 +87,12 @@ export function CreateAdminForm() {
           setIsLoading(false);
           return;
         }
-        const userData = querySnapshot.docs[0].data();
 
         // Create admin document in users collection
         const newAdminRef = doc(collection(db, "users"));
         const newAdminId = newAdminRef.id;
+
+        const userData = querySnapshot.docs[0].data();
 
         // Create admin document
         await setDoc(newAdminRef, {
@@ -106,9 +107,19 @@ export function CreateAdminForm() {
             createdAt: serverTimestamp(),
             createdBy: isuser.uid,
             isActive: true,
-            isNew: true,
-           
+            isNew: false,
           });
+
+          const q2 = query(collection(db, "request"), where("phone", "==", phone));
+          const quernSnap2 = await getDocs(q2);
+  
+          if(quernSnap2.empty){
+            toast.error("User not found");
+            setIsLoading(false);
+            return;
+          }
+
+          await updateDoc(doc(db, "request", quernSnap2.docs[0].id), { isNew: false });
 
        
         
@@ -164,6 +175,18 @@ export function CreateAdminForm() {
               required
             />
           </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
+            <Input
+              id="phone"
+              type="text"
+              value={phone}
+              required
+              readOnly
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
             <Input
@@ -173,16 +196,6 @@ export function CreateAdminForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
-            <Input
-              id="phone"
-              type="text"
-              value={phone}
-              required
-              readOnly
             />
           </div>
           <div className="space-y-3 mb-5">

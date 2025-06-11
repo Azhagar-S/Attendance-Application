@@ -22,12 +22,14 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { Loader2 as PageLoader, MapPin } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { auth } from "@/app/firebase/config";
 import { db } from "@/app/firebase/config";
 import { collection, query, where, getDocs , setDoc , doc , serverTimestamp } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { Label } from "@/components/ui/label";
 
 const initialDailySettings = {
   workingDays: {
@@ -45,6 +47,9 @@ const initialDailySettings = {
   earlyCheckInAllowed: "30",
   lateCheckOutAllowed: "30",
 };
+
+;
+
 
 export default function AdminSettingsPage() {
   const [dailySettings, setDailySettings] = useStateSettings(initialDailySettings);
@@ -69,7 +74,30 @@ export default function AdminSettingsPage() {
   const [requests, setRequests] = useState([]);
   const [requestStatus, setRequestStatus] = useState("None"); // Initial status
 
+  // Location Settings
+  const [geoLocation, setGeoLocation] = useState(null);
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
+
+  const [locationSettings, setLocationSettings] = useStateSettings({
+    latitude: "",
+    longitude: "",
+    radius: 50,
+  });
+  const [isLocationVisible, setIsLocationVisible] = useState(false);
+
   const [employees , setEmployees] = useState([]);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [email, setEmail] = useState("");
+  
+  useEffect(() => {
+    if (locationSettings.latitude && locationSettings.longitude) {
+      setIsLocationVisible(true);
+    } else {
+      setIsLocationVisible(false);
+    }
+  }, [locationSettings.latitude, locationSettings.longitude]);
 
   const filteredEmployees = employees.filter(
     (employee) =>
@@ -77,6 +105,349 @@ export default function AdminSettingsPage() {
       employee.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+
+  // Location Settings
+  const handleLocationChange = (location) => {
+    setIsLocationLoading(false);
+
+    console.log(location,"location is here")
+    setGeoLocation(location);
+  };
+
+  const MapLocationTracker = ({ onLocationChange, currentLocation, isLoading }) => {
+    const [locationError, setLocationError] = useState('');
+    const [isWatching, setIsWatching] = useState(false);
+    const [watchId, setWatchId] = useState(null);
+    const [isGettingAddress, setIsGettingAddress] = useState(false);
+  
+    const processLocationWithAddress = async (position) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      setIsGettingAddress(true);
+      
+      try {
+        const addressInfo = await getAddressFromCoordinates(latitude, longitude);
+        
+        const locationData = {
+          latitude,
+          longitude,
+          accuracy,
+          address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          timestamp: new Date().toLocaleTimeString(),
+          addressInfo: addressInfo,
+          area: addressInfo.area,
+          city: addressInfo.city,
+          state: addressInfo.state,
+          country: addressInfo.country,
+          fullAddress: addressInfo.fullAddress,
+          formattedAddress: addressInfo.formatted
+        };
+
+        setLocationSettings({
+          latitude: latitude,
+          longitude: longitude,
+          radius: 50,
+        });
+        
+        setLocationError('');
+        onLocationChange(locationData);
+      } catch (error) {
+        console.error('Error processing location:', error);
+        // Fallback to coordinates only
+        onLocationChange({
+          latitude,
+          longitude,
+          accuracy,
+          address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          timestamp: new Date().toLocaleTimeString(),
+          area: 'Unknown Area',
+          city: 'Unknown City',
+          state: 'Unknown State',
+          country: 'Unknown Country',
+          fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+          formattedAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+        });
+      } finally {
+        setIsGettingAddress(false);
+      }
+    };
+  
+    const startLocationTracking = () => {
+      if (!navigator.geolocation) {
+        setLocationError('Geolocation is not supported by this browser');
+        return;
+      }
+  
+      setIsWatching(true);
+      
+      const id = navigator.geolocation.watchPosition(
+        processLocationWithAddress,
+        (error) => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError('Location access denied by user');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setLocationError('Location information is unavailable');
+              break;
+            case error.TIMEOUT:
+              setLocationError('Location request timed out');
+              break;
+            default:
+              setLocationError('An unknown error occurred');
+              break;
+          }
+          setIsWatching(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 5000
+        }
+      );
+      
+      setWatchId(id);
+    };
+  
+    const stopLocationTracking = () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        setWatchId(null);
+      }
+      setIsWatching(false);
+    };
+  
+    const getCurrentLocation = () => {
+      if (!navigator.geolocation) {
+        setLocationError('Geolocation is not supported by this browser');
+        return;
+      }
+  
+      navigator.geolocation.getCurrentPosition(
+        processLocationWithAddress,
+        (error) => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError('Location access denied by user');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setLocationError('Location information is unavailable');
+              break;
+            case error.TIMEOUT:
+              setLocationError('Location request timed out');
+              break;
+            default:
+              setLocationError('An unknown error occurred');
+              break;
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000
+        }
+      );
+    };
+
+
+    console.log(geoLocation,"currentLocation is here")
+  
+    return (
+      <div className="space-y-3">
+        <Label className="text-sm font-medium flex items-center gap-2">
+          <MapPin className="h-4 w-4" />
+          Real-time Location with Address
+        </Label>
+        
+        {/* Control Buttons */}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={getCurrentLocation}
+            disabled={isLoading || isWatching || isGettingAddress}
+          >
+            {(isLoading || isGettingAddress) ? (
+              <PageLoader className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <MapPin className="mr-2 h-4 w-4" />
+            )}
+            {isGettingAddress ? 'Getting Address...' : 'Get Location'}
+          </Button>
+          
+          <Button
+            type="button"
+            variant={isWatching ? "destructive" : "default"}
+            size="sm"
+            onClick={isWatching ? stopLocationTracking : startLocationTracking}
+            disabled={isLoading || isGettingAddress}
+          >
+            {isWatching ? "Stop Tracking" : "Live Location"}
+          </Button>
+        </div>
+  
+        {/* Map Container */}
+        {currentLocation && (
+          <div className="border-2 border-gray-300 rounded-lg overflow-hidden max-w-2xl mx-auto h-1/2">
+            <div className="bg-gray-100 p-2 text-xs text-gray-600 flex justify-between items-center">
+              <span>Live Location Map</span>
+              {(isWatching || isGettingAddress) && (
+                <span className="flex items-center gap-1 text-green-600">
+                  <div className="animate-pulse w-2 h-2 bg-green-500 rounded-full"></div>
+                  {isGettingAddress ? 'Getting Address...' : 'Tracking'}
+                </span>
+              )}
+            </div>
+            
+            {/* Interactive Map Iframe */}
+            <iframe
+              key={`${currentLocation.latitude}-${currentLocation.longitude}`}
+              src={`https://maps.google.com/maps?q=${currentLocation.latitude},${currentLocation.longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+              width="100%"
+              height="400px"
+              style={{ border: 0 }}
+              allowFullScreen=""
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Current Location Map"
+            ></iframe>
+            
+            {/* Enhanced Location Details */}
+            <div className="p-3 bg-white border-t">
+              <div className="space-y-2 text-sm">
+                {currentLocation.formattedAddress && (
+                  <div className="bg-blue-50 p-2 rounded border">
+                    <div className="font-medium text-blue-800 mb-1">📍 Address:</div>
+                    <div className="text-blue-700 text-xs">{currentLocation.formattedAddress}</div>
+                  </div>
+                )}
+                
+                {/* <div className="grid grid-cols-2 gap-2">
+                  {currentLocation.area && (
+                    <div>
+                      <span className="text-gray-600 font-medium">Area:</span>
+                      <div className="text-green-600 text-xs">{currentLocation.area}</div>
+                    </div>
+                  )}
+                  {currentLocation.city && (
+                    <div>
+                      <span className="text-gray-600 font-medium">City:</span>
+                      <div className="text-green-600 text-xs">{currentLocation.city}</div>
+                    </div>
+                  )}
+                  {currentLocation.state && (
+                    <div>
+                      <span className="text-gray-600 font-medium">State:</span>
+                      <div className="text-green-600 text-xs">{currentLocation.state}</div>
+                    </div>
+                  )}
+                  {currentLocation.country && (
+                    <div>
+                      <span className="text-gray-600 font-medium">Country:</span>
+                      <div className="text-green-600 text-xs">{currentLocation.country}</div>
+                    </div>
+                  )}
+                </div> */}
+                
+                <div className="border-t pt-2 space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Coordinates:</span>
+                    <span className="font-mono text-xs">{currentLocation.address}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Accuracy:</span>
+                    <span className="text-green-600">±{Math.round(currentLocation.accuracy || 0)}m</span>
+                  </div>
+                  {/* <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Last Update:</span>
+                    <span className="text-blue-600">{currentLocation.timestamp}</span>
+                  </div> */}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+  
+        {/* Status Messages */}
+        {/* {!currentLocation && !locationError && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+            <p className="text-blue-800">
+              📍 Click "Get Location" or "Live Track" to capture your current position and address
+            </p>
+          </div>
+        )} */}
+        
+        {locationError && (
+          <div className="p-2 bg-red-50 border border-red-200 rounded text-sm">
+            <p className="text-red-800">❌ {locationError}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const getAddressFromCoordinates = async (latitude, longitude) => {
+    try {
+      // Using OpenStreetMap Nominatim API (free, no API key required)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'MeetingAttendanceApp/1.0'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Geocoding service unavailable');
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.address) {
+        const address = data.address;
+        return {
+          fullAddress: data.display_name,
+          area: address.neighbourhood || address.suburb || address.hamlet || address.village || address.town || '',
+          city: address.city || address.town || address.municipality || address.county || '',
+          state: address.state || address.region || '',
+          country: address.country || '',
+          postcode: address.postcode || '',
+          road: address.road || address.street || '',
+          houseNumber: address.house_number || '',
+          formatted: `${address.road || ''} ${address.house_number || ''}, ${address.neighbourhood || address.suburb || ''}, ${address.city || address.town || ''}, ${address.state || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '')
+        };
+      }
+      
+      return {
+        fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        area: '',
+        city: '',
+        state: '',
+        country: '',
+        postcode: '',
+        road: '',
+        houseNumber: '',
+        formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+      };
+    } catch (error) {
+      console.error('Error getting address:', error);
+      
+      // Fallback: Try Google Maps reverse geocoding (if you have API key)
+      // You can replace this with your preferred geocoding service
+      return {
+        fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        area: 'Unknown Area',
+        city: 'Unknown City',
+        state: 'Unknown State',
+        country: 'Unknown Country',
+        postcode: '',
+        road: '',
+        houseNumber: '',
+        formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+      };
+    }
+  };
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
@@ -85,6 +456,8 @@ export default function AdminSettingsPage() {
           console.log("No authenticated user found.");
           return;
         }
+
+        console.log(currentUser,"currentUser is here")
         const phone = currentUser.phoneNumber.slice(3);
         const q = query(collection(db, "users"), where("phone", "==", phone));
         const querySnap = await getDocs(q);
@@ -94,8 +467,13 @@ export default function AdminSettingsPage() {
         }
         const userData = querySnap.docs[0].data();
         const fetchedAdminUid = querySnap.docs[0].id;
+        setEmail(userData.email);
         setAdminUid(fetchedAdminUid);
         setCurrentMethod(userData.tracingMethod);
+
+        if (userData.officeLocation) {
+          setLocationSettings(userData.officeLocation);
+        }
 
         // Set initial tab visibility based on tracingMethod from user document
         setShowAddMeetingModal(userData.tracingMethod === "Schedule Meetings");
@@ -424,6 +802,141 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleLocationSettingChange = (e) => {
+    const { name, value } = e.target;
+    setLocationSettings((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocationSettings((prev) => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
+          setIsLocationVisible(true);
+          toast.success("Location Fetched", {
+            description: "Your current location has been set.",
+            position: "top-right",
+          });
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          toast.error("Error Fetching Location", {
+            description: `Could not get location: ${error.message}. Please enter manually.`,
+            position: "top-right",
+          });
+        }
+      );
+    } else {
+      toast.error("Geolocation Not Supported", {
+        description: "Your browser does not support geolocation.",
+        position: "top-right",
+      });
+    }
+  };
+
+  const handleSaveLocationSettings = async () => {
+    if (
+      !locationSettings.latitude ||
+      !locationSettings.longitude ||
+      !locationSettings.radius
+    ) {
+      toast.error("Missing Information", {
+        description: "Please provide latitude, longitude, and radius.",
+        position: "top-right",
+      });
+      return;
+    }
+
+    try {
+      if (!adminUid) {
+        throw new Error("Admin user not found.");
+      }
+
+      await setDoc(
+        doc(db, "users", adminUid),
+        {
+          officeLocation: {
+            latitude: parseFloat(locationSettings.latitude),
+            longitude: parseFloat(locationSettings.longitude),
+            radius: parseInt(locationSettings.radius, 10),
+          },
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      toast.success("Location Settings Saved", {
+        description: "Office location and radius have been updated.",
+        position: "top-right",
+      });
+    } catch (error) {
+      console.error("Error saving location settings:", error);
+      toast.error("Save Failed", {
+        description:
+          error.message || "Failed to save location settings.",
+        position: "top-right",
+      });
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match", {
+        description: "Please ensure both passwords are the same.",
+        position: "top-right",
+      });
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("Password is too weak", {
+        description: "Password must be at least 6 characters long.",
+        position: "top-right",
+      });
+      return;
+    }
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error("No authenticated user found.");
+      }
+
+      const credential = EmailAuthProvider.credential(email, newPassword);
+      await linkWithCredential(currentUser, credential);
+
+      setNewPassword("");
+      setConfirmPassword("");
+
+      toast.success("Password Updated", {
+        description: "You can now log in using your email and new password.",
+        position: "top-right",
+      });
+    } catch (error) {
+      console.error("Error updating password:", error);
+
+      let description = "Failed to update password. Please try again.";
+      if (error.code === 'auth/requires-recent-login') {
+        description =
+          "This is a sensitive operation. Please log out and log back in before updating your password.";
+      } else if (error.code === 'auth/email-already-in-use' || error.code === 'auth/credential-already-in-use') {
+        description = 
+          "This email is already linked to another account. Please use a different email.";
+      }
+
+      toast.error("Update Failed", {
+        description,
+        position: "top-right",
+      });
+    }
+  };
+
   const weekDays = [
     { id: 'mon', label: "Monday" },
     { id: 'tue', label: "Tuesday" },
@@ -521,15 +1034,18 @@ export default function AdminSettingsPage() {
 
   // Determine initial tab to be active
   const initialActiveTab = (() => {
-    if (showAddMeetingModal && currentMethod === "Schedule Meetings") return "scheduleMeetings";
-    if (showAddDailyAttendanceModal && currentMethod === "Daily Attendance") return "dailyAttendance";
-    
-    // If a method was approved via request, set that as the initial active tab
-    if (showAddMeetingModal) return "scheduleMeetings"; 
+    // Prefer the user's current method if its tab is visible
+    if (currentMethod === "Daily Attendance" && showAddDailyAttendanceModal)
+      return "dailyAttendance";
+    if (currentMethod === "Schedule Meetings" && showAddMeetingModal)
+      return "scheduleMeetings";
+
+    // Fallback to the first available tab
     if (showAddDailyAttendanceModal) return "dailyAttendance";
-    
-    // Fallback if no specific method is currently active or approved via request
-    return "dailyAttendance"; 
+    if (showAddMeetingModal) return "scheduleMeetings";
+
+    // A default if no tabs are available, though this case is unlikely
+    return "dailyAttendance";
   })();
 
   const showRequestButton = (targetFeature) => {
@@ -546,14 +1062,17 @@ export default function AdminSettingsPage() {
     return !hasPendingRequestForFeature;
   };
 
-
   if( showAddDailyAttendanceModal){
     console.log("aidsbouabdoubfouadofboabdobcaosudcjlashocuavocbou")
   }
 
   return (
     <div className="space-y-6 mt-10 mx-10">
+
+        
+      
       <div className="flex justify-between items-center">
+       
         <div>
           <h1 className="text-2xl font-semibold">Attendance Settings</h1>
           <p className="text-muted-foreground">
@@ -581,7 +1100,9 @@ export default function AdminSettingsPage() {
       >
         <TabsList
           className={`grid w-full ${
-            (showAddMeetingModal && showAddDailyAttendanceModal) ? "grid-cols-2" : "grid-cols-1"
+            showAddDailyAttendanceModal && showAddMeetingModal
+              ? "grid-cols-2"
+              : "grid-cols-1"
           }`}
         >
           {showAddDailyAttendanceModal && (
@@ -921,6 +1442,145 @@ export default function AdminSettingsPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Location Settings */}
+      <CardSettings className="mt-6">
+        <CardHeaderSettings>
+          <CardTitleSettings>Location-Based Attendance</CardTitleSettings>
+          <CardDescriptionSettings>
+            Set the company's official location for geo-fenced check-ins.
+          </CardDescriptionSettings>
+        </CardHeaderSettings>
+        <CardContentSettings className="space-y-6 pt-6">
+          <div className="space-y-2">
+            <LabelSettings className="text-base font-medium">
+              Office Geolocation
+            </LabelSettings>
+            <div className="p-4 border rounded-md space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                <div className="space-y-2">
+                  <LabelSettings htmlFor="latitude">Latitude</LabelSettings>
+                  <InputSettings
+                    id="latitude"
+                    name="latitude"
+                    value={locationSettings.latitude}
+                    onChange={handleLocationSettingChange}
+                    placeholder="e.g., 28.6139"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <LabelSettings htmlFor="longitude">Longitude</LabelSettings>
+                  <InputSettings
+                    id="longitude"
+                    name="longitude"
+                    value={locationSettings.longitude}
+                    onChange={handleLocationSettingChange}
+                    placeholder="e.g., 77.2090"
+                  />
+                </div>
+              </div>
+
+           
+              <MapLocationTracker 
+              currentLocation={geoLocation}
+              onLocationChange={handleLocationChange}
+              isLoading={isLocationLoading}
+            />
+         
+
+              
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <LabelSettings htmlFor="radius">
+              Check-in Radius (in meters)
+            </LabelSettings>
+            <InputSettings
+              id="radius"
+              name="radius"
+              type="number"
+              value={locationSettings.radius}
+              onChange={handleLocationSettingChange}
+              placeholder="e.g., 50"
+            />
+            <p className="text-xs text-muted-foreground">
+              This is the maximum distance from the office location within
+              which an employee can check in.
+            </p>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <ButtonSettings onClick={handleSaveLocationSettings}>
+              <Save className="mr-2 h-4 w-4" /> Save Location Settings
+            </ButtonSettings>
+          </div>
+        </CardContentSettings>
+      </CardSettings>
+
+
+      {/* Password Settings */}
+      <div>
+          <h1 className="text-2xl font-semibold">Account Settings</h1>
+          <p className="text-muted-foreground">
+            Set your password to enable login via email.
+          </p>
+        </div>
+
+
+      <CardSettings className="mt-6">
+        <CardHeaderSettings>
+          <CardTitleSettings>Password Settings</CardTitleSettings>
+          <CardDescriptionSettings>
+            Set or update your password to enable login via email.
+          </CardDescriptionSettings>
+        </CardHeaderSettings>
+        <CardContentSettings className="space-y-6 pt-6">
+
+          <div className="flex flex-col gap-4">
+                <LabelSettings htmlFor="email">Email</LabelSettings>
+                <InputSettings
+                  id="email"
+                  name="email"
+                  type="email"
+                  readOnly
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+            </div>
+          <div className="space-y-2">
+            <LabelSettings htmlFor="newPassword">New Password</LabelSettings>
+            <InputSettings
+              id="newPassword"
+              name="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password (min. 6 characters)"
+            />
+          </div>
+          <div className="space-y-2">
+            <LabelSettings htmlFor="confirmPassword">
+              Confirm Password
+            </LabelSettings>
+            <InputSettings
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+            />
+          </div>
+          <div className="flex justify-end pt-4">
+            <ButtonSettings onClick={handleUpdatePassword}>
+              <Save className="mr-2 h-4 w-4" /> Save Password
+            </ButtonSettings>
+          </div>
+        </CardContentSettings>
+      </CardSettings>
+
+      
     </div>
   );
 }
