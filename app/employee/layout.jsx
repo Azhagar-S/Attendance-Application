@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/app/firebase/config';
 import { Loader2 } from 'lucide-react';
 
 export default function MemberPanelLayout({ children }) {
@@ -9,17 +11,16 @@ export default function MemberPanelLayout({ children }) {
   const [isAuthValid, setIsAuthValid] = useState(false); 
 
   useEffect(() => {
-    setIsMounted(true);
-    const authed = localStorage.getItem('memberAuthed_test');
-    const profileData = localStorage.getItem('memberProfile_test');
-    if (!authed || !profileData) {
-      console.warn("Member not authenticated (test mode).");
-      setIsAuthValid(false); 
-      // router.replace('/member/login'); 
-    } else {
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
         setIsAuthValid(true);
-    }
-  }, [router]);
+      } else {
+        setIsAuthValid(false);
+      }
+    });
+
+    setIsMounted(true);
+  }, [auth]);
   
   if (!isMounted) { 
     return (
