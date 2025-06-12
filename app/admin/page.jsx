@@ -72,6 +72,7 @@ import { cn } from "@/lib/utils";
 import { onAuthStateChanged } from "firebase/auth";
 import { setDoc } from "firebase/firestore";
 
+
 // Mock Data - Replace with Firebase data
 const mockAttendanceData = [
   {

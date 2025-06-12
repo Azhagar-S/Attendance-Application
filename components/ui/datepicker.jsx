@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/popover"
 
 export function DatePicker({ date, setDate, className }) {
+  const [open, setOpen] = React.useState(false)
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant={"outline"}
@@ -33,11 +34,14 @@ export function DatePicker({ date, setDate, className }) {
           <Calendar
             mode="single"
             selected={date}
-            onSelect={setDate}
+            onSelect={(day) => {
+              setDate(day);
+              setOpen(false);
+            }}
             initialFocus
           />
         </PopoverContent>
       </Popover>
     </div>
   )
-}
+} 

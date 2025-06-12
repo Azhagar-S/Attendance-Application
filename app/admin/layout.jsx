@@ -31,6 +31,7 @@ import {
   Clock3,
   PanelLeftClose,
   PanelLeft,
+  Home,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -176,6 +177,11 @@ useEffect(()=>{
       href: "/admin/leavemanagement",
       label: "Leave Management",
       icon: CalendarCheck,
+    },
+    {
+      href: "/admin/wfh-management",
+      label: "WFH Management",
+      icon: Home,
     },
     { href: "/admin/settings", label: "Settings", icon: Settings },
   ];
