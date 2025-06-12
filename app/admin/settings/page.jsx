@@ -46,6 +46,7 @@ const initialDailySettings = {
   workingHours: "8",
   earlyCheckInAllowed: "30",
   lateCheckOutAllowed: "30",
+  attendees: [],
 };
 
 ;
@@ -73,6 +74,7 @@ export default function AdminSettingsPage() {
   const [currentMethod, setCurrentMethod] = useState("");
   const [requests, setRequests] = useState([]);
   const [requestStatus, setRequestStatus] = useState("None"); // Initial status
+  
 
   // Location Settings
   const [geoLocation, setGeoLocation] = useState(null);
@@ -86,6 +88,7 @@ export default function AdminSettingsPage() {
   const [isLocationVisible, setIsLocationVisible] = useState(false);
 
   const [employees , setEmployees] = useState([]);
+  const [departments, setDepartments] = useState({});
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -569,16 +572,24 @@ export default function AdminSettingsPage() {
         const querySnap = await getDocs(q);
         if (querySnap) {
           const fetchedEmployees = [];
+          const fetchedDepartments = {};
           querySnap.forEach(doc => {
             const employeeData = doc.data();
+            const department = employeeData.department || 'Unassigned';
             const employee = {
               id: doc.id,
               name: employeeData.name,
               email: employeeData.email,
+              department,
             };
             fetchedEmployees.push(employee);
+            if (!fetchedDepartments[department]) {
+              fetchedDepartments[department] = [];
+            }
+            fetchedDepartments[department].push(employee);
           });
           setEmployees(fetchedEmployees);
+          setDepartments(fetchedDepartments);
         }
       } catch (error) {
         console.error("Error fetching employee data:", error);
@@ -608,8 +619,9 @@ export default function AdminSettingsPage() {
     return () => unsubscribe();
   }, []);
 
-  const handleEmployeeSelect = (employee) => {
-    setMeetingSettings(prev => {
+  const handleEmployeeSelect = (employee, type) => {
+    const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
+    settingsUpdater(prev => {
       const exists = prev.attendees.some(a => a.id === employee.id);
       if (!exists) {
         const updatedAttendees = [...(prev.attendees || []), {
@@ -628,9 +640,10 @@ export default function AdminSettingsPage() {
     setShowDropdown(false);
   };
 
-  const handleSelectAllMembers = () => {
-    setMeetingSettings(prev => {
-      const currentAttendeeIds = new Set(prev.attendees.map(a => a.id));
+  const handleSelectAllMembers = (type) => {
+    const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
+    settingsUpdater(prev => {
+      const currentAttendeeIds = new Set((prev.attendees || []).map(a => a.id));
       const newAttendees = employees.filter(emp => !currentAttendeeIds.has(emp.id))
         .map(emp => ({
           id: emp.id,
@@ -640,25 +653,46 @@ export default function AdminSettingsPage() {
 
       return {
         ...prev,
-        attendees: [...prev.attendees, ...newAttendees]
+        attendees: [...(prev.attendees || []), ...newAttendees]
       };
     });
     setSearchTerm('');
     setShowDropdown(false);
   };
 
-  const removeAttendee = (employeeId) => {
-    setMeetingSettings(prev => ({
+  const removeAttendee = (employeeId, type) => {
+    const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
+    settingsUpdater(prev => ({
       ...prev,
       attendees: prev.attendees.filter(emp => emp.id !== employeeId)
     }));
   };
 
-  const clearAllAttendees = () => {
-    setMeetingSettings(prev => ({
+  const clearAllAttendees = (type) => {
+    const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
+    settingsUpdater(prev => ({
       ...prev,
       attendees: []
     }));
+  };
+
+  const handleDepartmentSelect = (departmentName, type) => {
+    const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
+    const members = departments[departmentName];
+    if (!members) return;
+
+    settingsUpdater(prev => {
+        const currentAttendeeIds = new Set((prev.attendees || []).map(a => a.id));
+        const newAttendees = members
+            .filter(emp => !currentAttendeeIds.has(emp.id))
+            .map(emp => ({ id: emp.id, name: emp.name, email: emp.email }));
+
+        return {
+            ...prev,
+            attendees: [...(prev.attendees || []), ...newAttendees]
+        };
+    });
+    setShowDropdown(false);
   };
 
   const handleDailySettingChange = (e) => {
@@ -712,6 +746,7 @@ export default function AdminSettingsPage() {
         workingHours: dailySettings.workingHours,
         earlyCheckInAllowed: dailySettings.earlyCheckInAllowed,
         lateCheckOutAllowed: dailySettings.lateCheckOutAllowed,
+        attendees: dailySettings.attendees || [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: "active",
@@ -1182,6 +1217,110 @@ export default function AdminSettingsPage() {
                   </div>
                 </fieldset>
 
+                <div className="space-y-2 w-full relative">
+                    <div className="flex items-center justify-between ">
+                      <LabelSettings>Select Departments or Members</LabelSettings>
+                      {dailySettings.attendees?.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => clearAllAttendees('daily')}
+                          className="text-xs"
+                        >
+                          Clear All
+                        </Button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <InputSettings
+                        placeholder="Search departments or employees..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setShowDropdown(true);
+                        }}
+                        onFocus={() => setShowDropdown(true)}
+                      />
+                      {showDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                          {/* All Members Option */}
+                          <div
+                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center border-b border-gray-100 bg-blue-25"
+                            onClick={() => handleSelectAllMembers('daily')}
+                          >
+                            <Users className="mr-3 h-4 w-4 text-blue-600" />
+                            <div>
+                              <div className="font-medium text-blue-700">
+                                Select All Members
+                              </div>
+                              <div className="text-xs text-blue-500">
+                                Add all {employees.length} employees
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Departments with Members */}
+                          {Object.keys(departments)
+                            .filter(deptName => 
+                                deptName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                departments[deptName].some(emp => emp.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                            )
+                            .map(deptName => (
+                                <div key={deptName} className="border-b">
+                                    <div className="px-4 py-2 bg-gray-50 text-sm font-semibold text-gray-600 flex justify-between items-center">
+                                        <span>{deptName}</span>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-auto px-2 py-1 text-xs"
+                                            onClick={() => handleDepartmentSelect(deptName, 'daily')}
+                                        >
+                                            Add all
+                                        </Button>
+                                    </div>
+                                    {departments[deptName]
+                                        .filter(employee => !searchTerm || employee.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                        .map(employee => {
+                                        const isAlreadySelected = dailySettings.attendees?.some(a => a.id === employee.id);
+                                        return (
+                                            <div
+                                            key={employee.id}
+                                            className={`pl-8 pr-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center ${isAlreadySelected ? 'bg-green-50 text-green-700' : ''}`}
+                                            onClick={() => handleEmployeeSelect(employee, 'daily')}
+                                            >
+                                            {employee.name}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Display selected members */}
+                    {dailySettings.attendees?.length > 0 && (
+                      <div className="pt-2 flex flex-wrap gap-2">
+                        {dailySettings.attendees.map((employee) => (
+                          <div
+                            key={employee.id}
+                            className="flex items-center gap-2 bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full"
+                          >
+                            <span>{employee.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAttendee(employee.id, 'daily')}
+                              className="text-blue-500 hover:text-blue-700 rounded-full hover:bg-blue-200 p-0.5"
+                              aria-label={`Remove ${employee.name}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <LabelSettings htmlFor="defaultStartTime">
@@ -1297,8 +1436,6 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-
                   <div className="space-y-2 w-full">
                     <LabelSettings htmlFor="earlyCheckInAllowed">
                       Early Check-in Allowance (minutes)
@@ -1333,7 +1470,7 @@ export default function AdminSettingsPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={clearAllAttendees}
+                          onClick={() => clearAllAttendees('meeting')}
                           className="text-xs"
                         >
                           Clear All
@@ -1355,7 +1492,7 @@ export default function AdminSettingsPage() {
                           {/* All Members Option */}
                           <div
                             className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center border-b border-gray-100 bg-blue-25"
-                            onClick={handleSelectAllMembers}
+                            onClick={() => handleSelectAllMembers('meeting')}
                           >
                             <Users className="mr-3 h-4 w-4 text-blue-600" />
                             <div>
@@ -1376,7 +1513,7 @@ export default function AdminSettingsPage() {
                                 <div
                                   key={employee.id}
                                   className={`px-4 py-2 hover:bg-gray-100 cursor-pointer flex items-center ${isAlreadySelected ? 'bg-green-50 text-green-700' : ''}`}
-                                  onClick={() => handleEmployeeSelect(employee)}
+                                  onClick={() => handleEmployeeSelect(employee, 'meeting')}
                                 >
                                   {employee.name}
                                 </div>
@@ -1399,7 +1536,7 @@ export default function AdminSettingsPage() {
                             <span>{employee.name}</span>
                             <button
                               type="button"
-                              onClick={() => removeAttendee(employee.id)}
+                              onClick={() => removeAttendee(employee.id, 'meeting')}
                               className="text-blue-500 hover:text-blue-700 rounded-full hover:bg-blue-200 p-0.5"
                               aria-label={`Remove ${employee.name}`}
                             >
