@@ -125,6 +125,8 @@ export function DailyAttendance({
     radius: null,
   });
 
+  const [wfhRequests, setWfhRequests] = useState([]);
+  const [isWfhApproved, setIsWfhApproved] = useState(false);
 
   // Fetch attendance settings
   useEffect(() => {
@@ -279,14 +281,45 @@ export function DailyAttendance({
           }
         }
 
+        workFromHome();
+
         console.log("checkAndStatus", checkAndStatus);
       } catch (error) {
         console.error("Error fetching check and status:", error);
       }
     };
 
+
+    const workFromHome = async () => {
+      const user = auth.currentUser;
+      const phone = user.phoneNumber.slice(3);
+      const userQuery = query(collection(db, "users"), where("phone", "==", phone));
+      const userSnapshot = await getDocs(userQuery);
+      const userData = userSnapshot.docs[0].data();
+      const adminUid = userData.adminuid;
+
+      const wfhRequests = await getDocs(collection(db, "wfh_requests"), where("adminuid", "==", adminUid));
+      const wfhRequestsData = wfhRequests.docs.map((doc) => doc.data());
+      console.log("wfhRequestsData", wfhRequestsData);
+      setWfhRequests(wfhRequestsData);
+      wfhRequestsData[0].status === "approved" ? setIsWfhApproved(true) : setIsWfhApproved(false);
+    }
+
     fetchTodayAttendance();
   }, [user]);
+
+
+  // detect if user is in online or not
+  // const isOnline = async () => {
+  //   const user = auth.currentUser;
+  //   const phone = user.phoneNumber.slice(3);
+  //   const userQuery = query(collection(db, "users"), where("phone", "==", phone));
+  //   const userSnapshot = await getDocs(userQuery);
+  //   const userData = userSnapshot.docs[0].data();
+  //   const adminUid = userData.adminuid;
+
+   
+  // }
 
   // Address Geocoding Service
   const getAddressFromCoordinates = async (latitude, longitude) => {
@@ -508,14 +541,16 @@ export function DailyAttendance({
       return;
     }
 
-    // Validate location
-    if (!geoLocation) {
-      sonnerToast.error("Location Required", {
+
+   
+    if(!isWfhApproved && !geoLocation){
+      sonnerToast.error("WFH Approved", {
         description:
-          "Please capture your current location before marking attendance.",
+          "You are not allowed to check-in from office.",
       });
       return;
     }
+   
 
     setIsLoading(true);
 
@@ -1190,11 +1225,16 @@ export function DailyAttendance({
             />
 
             {/* Enhanced Map Location Tracker */}
-            <MapLocationTracker
-              currentLocation={geoLocation}
-              onLocationChange={handleLocationChange}
-              isLoading={isLocationLoading}
-            />
+
+
+            {isWfhApproved && (
+               <MapLocationTracker
+               currentLocation={geoLocation}
+               onLocationChange={handleLocationChange}
+               isLoading={isLocationLoading}
+             />
+            )}
+           
           </div>
 
           <DialogFooter className="sm:justify-start">

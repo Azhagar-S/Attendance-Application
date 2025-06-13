@@ -34,10 +34,15 @@ import {
 } from "@/components/ui/tooltip";
 import { where } from "firebase/firestore";
 import { db } from "@/app/firebase/config";
-import { query, collection, getDocs , doc } from "firebase/firestore";
+import { query, collection, getDocs , doc , getDoc } from "firebase/firestore";
 import { auth } from "@/app/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { updateDoc } from "firebase/firestore";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+
 
 
 // Mock Data for Leave Requests - Replace with Firebase data
@@ -90,6 +95,10 @@ export default function LeaveManagementPage() {
   const [filteredLeaveRequests, setFilteredLeaveRequests] =
     useState([]);
 
+  const [leaveQuota, setLeaveQuota] = useState("");
+  const [carryForward, setCarryForward] = useState(false);
+  const [maximumDaysCarryForward, setMaximumDaysCarryForward] = useState("");
+
     
   const [statusFilter, setStatusFilter] = useState("all"); // 'all', 'pending', 'approved', 'rejected'
   // Using Sonner toast directly
@@ -121,6 +130,8 @@ export default function LeaveManagementPage() {
             id: doc.id,
             ...doc.data(),
           }));
+
+         
         
          console.log("leaveRequests",leaveRequests)
           setLeaveRequests(leaveRequests);
@@ -131,6 +142,8 @@ export default function LeaveManagementPage() {
         console.error("Error fetching leave requests:", error);
       }
     };
+
+    
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -151,6 +164,20 @@ export default function LeaveManagementPage() {
     setFilteredLeaveRequests(requests);
   }, [statusFilter, leaveRequests]);
 
+
+
+  const handleLeaveQuotaChange = (e) => {
+    if(e.target.value === ""){
+      setLeaveQuota("0");
+    }else{
+      setLeaveQuota(e.target.value);
+    }
+  }
+
+const handleCarryForwardChange = () => {
+
+    setCarryForward(!carryForward);
+  }
   const handleUpdateRequestStatus = async(requestId, newStatus , employeeName) => {
     // TODO: Firebase logic to update leave request status in Firestore
     try {
@@ -189,6 +216,7 @@ export default function LeaveManagementPage() {
   const getStatusBadge = (status) => {
     switch (status.toLowerCase()) {
       case "pending":
+
         return (
           <Badge
             variant="outline"
@@ -342,6 +370,72 @@ export default function LeaveManagementPage() {
           </div>
         </CardContent>
       </Card>
+
+
+      {/* <Card className="w-full  shadow-lg border border-gray-200 rounded-xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
+        <CardTitle className="text-xl font-semibold text-gray-800">
+          Leave Configuration
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-6 bg-white">
+        <div className="grid grid-cols-1 gap-6">
+          <div className="space-y-3">
+            <Label 
+              htmlFor="leaveQuota" 
+              className="text-sm font-medium text-gray-700"
+            >
+              Leave Quota (Annual Leave)
+            </Label>
+            <Input
+              id="leaveQuota"
+              name="leaveQuota"
+              value={leaveQuota}
+              onChange={handleLeaveQuotaChange}
+              type="text"
+              placeholder="Enter leave quota (e.g., 12)"
+              className="w-full rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+            />
+            <p className="text-xs text-gray-500">
+              Specify the total number of leave days available.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label 
+                  htmlFor="carryForward" 
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Carry Forward
+                </Label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Allow unused leave days to carry forward to the next month.
+                </p>
+              </div>
+              <Switch
+                id="carryForward"
+                name="carryForward"
+                checked={carryForward}
+                onCheckedChange={handleCarryForwardChange}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full",
+                  carryForward ? "bg-indigo-600" : "bg-gray-200"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition",
+                    carryForward ? "translate-x-6" : "translate-x-1"
+                  )}
+                />
+              </Switch>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card> */}
     </div>
   );
 }

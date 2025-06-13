@@ -57,11 +57,14 @@ const AdminWFHRequests = () => {
               return {
                 id: doc.id,
                 ...data,
+                startDate: data.startDate.toDate(),
+                endDate: data.endDate.toDate(),
                 submittedAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()
               }
             });
             
             setRequests(fetchedRequests);
+            
           } else {
             console.error("Admin user not found.");
             setRequests([]);

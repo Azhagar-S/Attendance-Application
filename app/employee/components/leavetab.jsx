@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PenLine, Calendar, Clock, FileText, User } from 'lucide-react';
 import { db } from "@/app/firebase/config";
-import { query, collection, where, getDocs, setDoc, doc } from "firebase/firestore";
+import { query, collection, where, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
 
 // Enhanced Logging System
 class Logger {
@@ -53,11 +53,7 @@ class Logger {
       DEBUG: 'color: #888888;'
     };
 
-    console.log(
-      `%c[${timestamp}] ${levelName} [${context}]: ${message}`,
-      styles[levelName],
-      data || ''
-    );
+
 
     // Store in sessionStorage for debugging
     try {
@@ -145,7 +141,10 @@ export default function LeaveTab({ user }) {
   const [reason, setReason] = useState('');
   const [employeeData, setEmployeeData] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-
+  const [leaveQuota, setLeaveQuota] = useState("");
+  const [carryForward, setCarryForward] = useState(false);
+  const [maximumDaysCarryForward, setMaximumDaysCarryForward] = useState("");
+  const [leavesTakenThisMonth, setLeavesTakenThisMonth] = useState(0);
   // Check for mobile view
   useEffect(() => {
     Logger.info('LeaveTab component mounted', { userId: user?.phoneNumber });
@@ -205,6 +204,7 @@ export default function LeaveTab({ user }) {
         // Then fetch leave requests using the employee UID
         if (userData.uid) {
           await fetchLeaveRequests(userData.uid);
+          await fetchLeaveQuota(userData.adminuid);
         }
         
         PerformanceMonitor.end('fetchEmployeeData');
@@ -250,6 +250,9 @@ export default function LeaveTab({ user }) {
         requests.sort((a, b) => new Date(b.appliedOn) - new Date(a.appliedOn));
         
         setLeaveRequests(requests);
+        // Calculate leaves taken this month
+        setLeavesTakenThisMonth(calculateLeavesTakenThisMonth(requests));
+        
         Logger.info("Leave requests fetched successfully", { 
           count: requests.length,
           requests: requests.map(r => ({ id: r.id, status: r.status, appliedOn: r.appliedOn }))
@@ -264,14 +267,66 @@ export default function LeaveTab({ user }) {
         PerformanceMonitor.end('fetchLeaveRequests');
       }
     };
+
+    const fetchLeaveQuota = async (adminuid) => {
+      console.log("adminuid", adminuid);
+      try {
+        const leaveQuotaRef = query(collection(db, "Daily_attendance"), where("adminUid", "==", adminuid));
+        const querySnapshot = await getDocs(leaveQuotaRef);
+        
+        if (querySnapshot.empty) {
+          console.log("No leave quota data found for adminuid:", adminuid);
+          return;
+        }
+
+        const leaveQuotaData = querySnapshot.docs[0].data();
+        console.log("Leave quota data:", leaveQuotaData);
+        
+        if (leaveQuotaData) {
+          setLeaveQuota(leaveQuotaData.leaveQuota || 0);
+          setCarryForward(leaveQuotaData.carryForward || false);
+          setMaximumDaysCarryForward(leaveQuotaData.maximumDaysCarryForward || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching leave quota:", error);
+        sonnerToast.error("Failed to load leave quota", {
+          description: "Please refresh the page or contact support."
+        });
+      }
+    }
   
     fetchEmployeeData();
+    
   
     return () => {
       isMounted = false;
       Logger.debug('Cleanup: fetchEmployeeData effect unmounted');
     };
   }, [user]);
+
+
+console.log("leave quota" , leaveQuota);
+
+  // Add function to calculate leaves taken in current month
+  const calculateLeavesTakenThisMonth = (requests) => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+
+    return requests.reduce((total, request) => {
+      const requestDate = new Date(request.startDate);
+      if (requestDate.getMonth() === currentMonth && 
+          requestDate.getFullYear() === currentYear && 
+          request.status === 'Approved') {
+        // Calculate number of days between start and end date
+        const start = new Date(request.startDate);
+        const end = new Date(request.endDate);
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+        return total + days;
+      }
+      return total;
+    }, 0);
+  };
 
   const handleApplyLeaveSubmit = async(e) => {
     e.preventDefault();
@@ -284,7 +339,20 @@ export default function LeaveTab({ user }) {
       employeeUid: employeeData.uid
     });
 
-    // Validation
+    // Calculate number of days requested
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Check if employee has exceeded monthly quota
+    if (leavesTakenThisMonth + daysRequested > leaveQuota) {
+      sonnerToast.error("Leave Quota Exceeded", {
+        description: `You have already taken ${leavesTakenThisMonth} days of leave this month. Your monthly quota is ${leaveQuota} days.`
+      });
+      return;
+    }
+
+    // Rest of your existing validation
     if (!startDate || !endDate || !reason.trim() || !leaveType) {
       Logger.warn("Leave application validation failed - missing fields", {
         hasStartDate: !!startDate,
@@ -486,6 +554,10 @@ export default function LeaveTab({ user }) {
           <DialogHeader>
             <DialogTitle>Apply for Leave</DialogTitle>
             <DialogDescription>Fill in the details for your leave request.</DialogDescription>
+            
+           {leavesTakenThisMonth >0 && (
+            <p className="text-sm text-red-500">You have already taken {leavesTakenThisMonth} days of leave this month.</p>
+           )}
           </DialogHeader>
           <form onSubmit={handleApplyLeaveSubmit} className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -583,6 +655,7 @@ export default function LeaveTab({ user }) {
           )}
         </CardContent>
       </Card>
+
     </div>
   );
 };

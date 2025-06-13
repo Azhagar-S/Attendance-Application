@@ -817,13 +817,23 @@ export default function MemberPage() {
                             <Label htmlFor="equipmentNeeded">
                               Equipment Needed
                             </Label>
-                            <Input
-                              id="equipmentNeeded"
-                              name="equipmentNeeded"
+                            <Select
                               value={formData.equipmentNeeded}
-                              onChange={handleInputChange}
-                              placeholder="Laptop, monitor, etc."
-                            />
+                              onValueChange={(value) =>
+                                handleSelectChange("equipmentNeeded", value)
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Equipment" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="laptop">Laptop</SelectItem>
+                                <SelectItem value="monitor">Monitor</SelectItem>
+                                <SelectItem value="keyboard">Keyboard</SelectItem>
+                                <SelectItem value="mouse">Mouse</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
 
                           <div className="space-y-2">
@@ -839,8 +849,6 @@ export default function MemberPage() {
                             />
                           </div>
                         </div>
-
-                        {/* Working Hours */}
                        
 
                         {/* Additional Notes */}

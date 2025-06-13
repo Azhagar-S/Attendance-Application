@@ -30,6 +30,17 @@ import { db } from "@/app/firebase/config";
 import { collection, query, where, getDocs , setDoc , doc , serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged, EmailAuthProvider, linkWithCredential } from "firebase/auth";
 import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+
 
 const initialDailySettings = {
   workingDays: {
@@ -49,7 +60,7 @@ const initialDailySettings = {
   attendees: [],
 };
 
-;
+
 
 
 export default function AdminSettingsPage() {
@@ -75,6 +86,8 @@ export default function AdminSettingsPage() {
   const [requests, setRequests] = useState([]);
   const [requestStatus, setRequestStatus] = useState("None"); // Initial status
   
+  const [leaveQuota, setLeaveQuota] = useState("");
+  const [carryForward, setCarryForward] = useState(false);
 
   // Location Settings
   const [geoLocation, setGeoLocation] = useState(null);
@@ -93,6 +106,20 @@ export default function AdminSettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [maximumDaysCarryForward, setMaximumDaysCarryForward] = useState("");
+  // Leave Configuration
+  const handleLeaveQuotaChange = (e) => {
+    if(e.target.value === ""){
+      setLeaveQuota("0");
+    }else{
+      setLeaveQuota(e.target.value);
+    }
+  }
+
+  const handleCarryForwardChange = (e) => {
+
+    setCarryForward(!carryForward);
+  }
   
   useEffect(() => {
     if (locationSettings.latitude && locationSettings.longitude) {
@@ -726,6 +753,14 @@ export default function AdminSettingsPage() {
         throw new Error("User phone number not available");
       }
 
+      if(leaveQuota === "" || carryForward === "" || maximumDaysCarryForward === "" || dailySettings.attendees?.length === 0  ){
+        toast.error("Error", {
+          description: "Please fill in all required fields",
+          position: "top-right"
+        });
+        return;
+      }
+
       const q = query(collection(db, "users"), where("phone", "==", phone));
       const querySnap = await getDocs(q);
 
@@ -737,7 +772,7 @@ export default function AdminSettingsPage() {
       const currentAdminUid = adminDoc.id;
 
       const dailyAttendanceRef = doc(collection(db, "Daily_attendance"));
-
+      
       const dailyAttendanceData = {
         adminUid: currentAdminUid,
         workingDays: dailySettings.workingDays,
@@ -749,6 +784,9 @@ export default function AdminSettingsPage() {
         attendees: dailySettings.attendees || [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        leaveQuota: leaveQuota,
+        carryForward: carryForward,
+        maximumDaysCarryForward: maximumDaysCarryForward,
         status: "active",
         settingsId: dailyAttendanceRef.id
       };
@@ -1374,6 +1412,88 @@ export default function AdminSettingsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 gap-6">
+          <div className="space-y-3">
+            <LabelSettings 
+              htmlFor="leaveQuota" 
+              className="text-sm font-medium text-black"
+            >
+              Leave Quota (Annual Leave)
+            </LabelSettings>
+            <InputSettings
+              id="leaveQuota"
+              name="leaveQuota"
+              value={leaveQuota}
+              onChange={handleLeaveQuotaChange}
+              type="text"
+              placeholder="Enter leave quota (e.g., 12)"
+              className="w-full rounded-md border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+            />
+            <p className="text-xs text-gray-500">
+              Specify the total number of leave days available.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <LabelSettings 
+                  htmlFor="carryForward" 
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Carry Forward
+                </LabelSettings>
+                <p className="text-xs text-gray-500 mt-1">
+                  Allow unused leave days to carry forward to the next month.
+                </p>
+              </div>
+              <Switch
+                id="carryForward"
+                name="carryForward"
+                checked={carryForward}
+                onCheckedChange={handleCarryForwardChange}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full",
+                  carryForward ? "bg-indigo-600" : "bg-gray-200"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition",
+                    carryForward ? "translate-x-6" : "translate-x-1"
+                  )}
+                />
+              </Switch>
+
+              
+            </div>
+            {carryForward && (
+                <div className="flex flex-col  gap-2">
+                <LabelSettings htmlFor="maximum_days_carry_forward">Maximum Days Carry Forward</LabelSettings>
+                <p className="text-xs text-gray-500 mt-1">
+                  Maximum number of days that can be carried forward.
+                </p>
+                <InputSettings
+                  id="maximum_days_carry_forward"
+                  name="maximum_days_carry_forward"
+                  type="text"
+                  value={maximumDaysCarryForward}
+                  placeholder="Enter maximum days carry forward (e.g., 5)"
+                  onChange={(e) => {
+                    if(e.target.value === ""){
+                      setMaximumDaysCarryForward("0");
+                    }else{
+                      setMaximumDaysCarryForward(e.target.value);
+                    }
+                  }}
+                />
+                
+              </div>
+              )}
+          </div>
+        </div>
+                    
                 <div className="flex justify-end pt-4">
                   <ButtonSettings onClick={handleSaveDailySettings}>
                     <Save className="mr-2 h-4 w-4" /> Save Daily Settings
@@ -1716,6 +1836,8 @@ export default function AdminSettingsPage() {
           </div>
         </CardContentSettings>
       </CardSettings>
+
+      
 
       
     </div>
