@@ -135,8 +135,8 @@ export default function LeaveTab({ user }) {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [isApplyLeaveDialogOpen, setIsApplyLeaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [startDate, setStartDate] = useState(undefined);
-  const [endDate, setEndDate] = useState(undefined);
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
   const [leaveType, setLeaveType] = useState('');
   const [reason, setReason] = useState('');
   const [employeeData, setEmployeeData] = useState('');
@@ -145,6 +145,16 @@ export default function LeaveTab({ user }) {
   const [carryForward, setCarryForward] = useState(false);
   const [maximumDaysCarryForward, setMaximumDaysCarryForward] = useState("");
   const [leavesTakenThisMonth, setLeavesTakenThisMonth] = useState(0);
+  const [carriedForwardLeaves, setCarriedForwardLeaves] = useState(0);
+  const [addTime, setAddTime] = useState(false);
+  const [startTime, setStartTime] = useState(null);
+  const [endTime, setEndTime] = useState(null);
+
+
+
+  console.log("start time" , startTime);
+  console.log("end time" , endTime);
+
   // Check for mobile view
   useEffect(() => {
     Logger.info('LeaveTab component mounted', { userId: user?.phoneNumber });
@@ -238,20 +248,29 @@ export default function LeaveTab({ user }) {
           return;
         }
         
+        let count = 0;
         const requests = [];
         querySnapshot.forEach((doc) => {
+          
+
           requests.push({
             id: doc.id,
             ...doc.data()
           });
+       
+          
         });
 
         // Sort by applied date (newest first)
         requests.sort((a, b) => new Date(b.appliedOn) - new Date(a.appliedOn));
         
         setLeaveRequests(requests);
+
+        console.log("requests" , requests);
         // Calculate leaves taken this month
         setLeavesTakenThisMonth(calculateLeavesTakenThisMonth(requests));
+        // Calculate carried forward leaves
+        setCarriedForwardLeaves(calculateCarriedForwardLeaves(requests));
         
         Logger.info("Leave requests fetched successfully", { 
           count: requests.length,
@@ -304,6 +323,18 @@ export default function LeaveTab({ user }) {
     };
   }, [user]);
 
+  // Add useEffect to check for same date
+  useEffect(() => {
+    if (startDate && endDate) {
+      const isSameDay = startDate.toDateString() === endDate.toDateString();
+      setAddTime(isSameDay);
+      Logger.debug('Date comparison', { 
+        startDate: startDate.toDateString(), 
+        endDate: endDate.toDateString(),
+        isSameDay 
+      });
+    }
+  }, [startDate, endDate]);
 
 console.log("leave quota" , leaveQuota);
 
@@ -328,26 +359,80 @@ console.log("leave quota" , leaveQuota);
     }, 0);
   };
 
+  // Add function to calculate carried forward leaves
+  const calculateCarriedForwardLeaves = (requests) => {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    // Get last month's date
+    const lastMonth = new Date(currentYear, currentMonth - 1, 1);
+    const lastMonthYear = lastMonth.getFullYear();
+    const lastMonthMonth = lastMonth.getMonth();
+
+    // Calculate unused leaves from last month
+    const lastMonthLeaves = requests.filter(request => {
+      const requestDate = new Date(request.startDate);
+      return requestDate.getMonth() === lastMonthMonth && 
+             requestDate.getFullYear() === lastMonthYear && 
+             request.status === 'Approved';
+    });
+
+    const lastMonthDaysTaken = lastMonthLeaves.reduce((total, request) => {
+      const start = new Date(request.startDate);
+      const end = new Date(request.endDate);
+      const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      return total + days;
+    }, 0);
+
+    // Calculate unused leaves
+    const unusedLeaves = Math.max(0, leaveQuota - lastMonthDaysTaken);
+    
+    // Apply maximum carry forward limit
+    return Math.min(unusedLeaves, maximumDaysCarryForward || 0);
+  };
+
+  console.log("leavesTakenThisMonth" , leavesTakenThisMonth);
+
   const handleApplyLeaveSubmit = async(e) => {
     e.preventDefault();
-    
-    Logger.info('Leave application submission started', {
-      startDate,
-      endDate,
-      leaveType,
-      reasonLength: reason.length,
-      employeeUid: employeeData.uid
-    });
 
     // Calculate number of days requested
     const start = new Date(startDate);
     const end = new Date(endDate);
     const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
+    // Check if employee has any available leaves
+    const totalAvailableLeaves = leaveQuota + (carryForward ? carriedForwardLeaves : 0);
+    
+    if (totalAvailableLeaves <= 0) {
+      sonnerToast.error("No Leaves Available", {
+        description: "You don't have any leaves available for this month."
+      });
+      return;
+    }
+
+    // Check if the requested dates are in the current month
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const startMonth = start.getMonth();
+    const startYear = start.getFullYear();
+    const endMonth = end.getMonth();
+    const endYear = end.getFullYear();
+
+    if (startMonth !== currentMonth || startYear !== currentYear || 
+        endMonth !== currentMonth || endYear !== currentYear) {
+      sonnerToast.error("Invalid Date Range", {
+        description: "Leave can only be applied for the current month."
+      });
+      return;
+    }
+
     // Check if employee has exceeded monthly quota
-    if (leavesTakenThisMonth + daysRequested > leaveQuota) {
+    if (leavesTakenThisMonth + daysRequested > totalAvailableLeaves) {
       sonnerToast.error("Leave Quota Exceeded", {
-        description: `You have already taken ${leavesTakenThisMonth} days of leave this month. Your monthly quota is ${leaveQuota} days.`
+        description: `You have already taken ${leavesTakenThisMonth} days of leave this month. Your available leaves are ${totalAvailableLeaves} days (${leaveQuota} monthly + ${carriedForwardLeaves} carried forward).`
       });
       return;
     }
@@ -366,13 +451,28 @@ console.log("leave quota" , leaveQuota);
       return;
     }
 
-    if (new Date(startDate) > new Date(endDate)) {
-      Logger.warn("Leave application validation failed - invalid date range", {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
-      });
+    const currentDateString = new Date().toLocaleDateString().split('T')[0];
+    const startDateString = startDate.toLocaleDateString().split('T')[0];
+    
+    if (startDateString < currentDateString) {
       sonnerToast.error("Invalid Dates", { 
-        description: "Start date cannot be after end date." 
+        description: "Start date cannot be before current date." 
+      });
+      return;
+    }
+
+    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if(startTime < currentTime || endTime < currentTime){
+      sonnerToast.error("Invalid Time", {
+        description: "Start time cannot be before current time."
+      });
+      return;
+    }
+
+    if(startTime > endTime){
+      sonnerToast.error("Invalid Time", {
+        description: "Start time cannot be after end time."
       });
       return;
     }
@@ -387,10 +487,13 @@ console.log("leave quota" , leaveQuota);
         endDate: format(endDate, "yyyy-MM-dd"),
         reason,
         leaveType,
+        startTime,
+        endTime,
         status: 'Pending',
         appliedOn: format(new Date(), "yyyy-MM-dd"),
         employeeuid: employeeData.uid,
         adminuid: employeeData.adminuid,
+        daysRequested: daysRequested
       };
       
       Logger.debug('Creating leave request document', newRequest);
@@ -406,11 +509,12 @@ console.log("leave quota" , leaveQuota);
       Logger.info("Leave request submitted successfully", {
         requestId: newLeaveRequestRef.id,
         leaveType,
-        dateRange: `${newRequest.startDate} to ${newRequest.endDate}`
+        dateRange: `${newRequest.startDate} to ${newRequest.endDate}`,
+        daysRequested: daysRequested
       });
       
       sonnerToast.success("Leave Applied Successfully!", { 
-        description: "Your request is pending approval." 
+        description: `Your request for ${daysRequested} days is pending approval.` 
       });
       
       // Reset form
@@ -554,10 +658,12 @@ console.log("leave quota" , leaveQuota);
           <DialogHeader>
             <DialogTitle>Apply for Leave</DialogTitle>
             <DialogDescription>Fill in the details for your leave request.</DialogDescription>
-            
-           {leavesTakenThisMonth >0 && (
-            <p className="text-sm text-red-500">You have already taken {leavesTakenThisMonth} days of leave this month.</p>
-           )}
+            {leavesTakenThisMonth > 0 && (
+              <p className="text-sm text-red-500">You have already taken {leavesTakenThisMonth} days of leave this month.</p>
+            )}
+            {carryForward && carriedForwardLeaves > 0 && (
+              <p className="text-sm text-green-500">You have {carriedForwardLeaves} days carried forward from last month.</p>
+            )}
           </DialogHeader>
           <form onSubmit={handleApplyLeaveSubmit} className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -565,6 +671,10 @@ console.log("leave quota" , leaveQuota);
                 <Label htmlFor="leaveStartDate">Start Date (Leave Duration)</Label>
                 <DatePicker 
                   date={startDate} 
+                  onChange={(date) => {
+                    setStartDate(date);
+                    Logger.debug('Start date selected', { date });
+                  }}
                   setDate={(date) => {
                     setStartDate(date);
                     Logger.debug('Start date selected', { date });
@@ -576,6 +686,10 @@ console.log("leave quota" , leaveQuota);
                 <Label htmlFor="leaveEndDate">End Date (Leave Duration)</Label>
                 <DatePicker 
                   date={endDate} 
+                  onChange={(date) => {
+                    setEndDate(date);
+                    Logger.debug('End date selected', { date });
+                  }}
                   setDate={(date) => {
                     setEndDate(date);
                     Logger.debug('End date selected', { date });
@@ -584,6 +698,40 @@ console.log("leave quota" , leaveQuota);
                 />
               </div>
             </div>
+
+            {addTime && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="leaveStartTime">Start Time</Label>
+                  <Input
+                    id="leaveStartTime"
+                    name="leaveStartTime"
+                    type="time"
+                    value={startTime?startTime:new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    onChange={(e) => {
+                      setStartTime(e.target.value);
+                      Logger.debug('Start time selected', { time: e.target.value });
+                    }}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="leaveEndTime">End Time</Label>
+                  <Input
+                    id="leaveEndTime"
+                    name="leaveEndTime"
+                    type="time"
+                    value={endTime?endTime:new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    onChange={(e) => {
+                      setEndTime(e.target.value);
+                      Logger.debug('End time selected', { time: e.target.value });
+                    }}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <Label htmlFor="leaveType">Leave Type</Label>
               <Select 
