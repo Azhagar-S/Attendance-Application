@@ -767,13 +767,26 @@ export default function AdminSettingsPage() {
         throw new Error("User phone number not available");
       }
 
-      if(leaveQuota === "" || carryForward === "" || maximumDaysCarryForward === "" || dailySettings.attendees?.length === 0  ){
+      if(leaveQuota === ""  || dailySettings.attendees?.length === 0  ){
         toast.error("Error", {
           description: "Please fill in all required fields",
           position: "top-right"
         });
         return;
       }
+
+      if(carryForward)
+      {
+        if(maximumDaysCarryForward === "")
+        {
+          toast.error("Error", {
+            description: "Please fill in all required fields",
+            position: "top-right"
+          });
+        }
+      }
+
+      
 
       const q = query(collection(db, "users"), where("phone", "==", phone));
       const querySnap = await getDocs(q);
@@ -1034,6 +1047,8 @@ export default function AdminSettingsPage() {
     { id: 'sun', label: "Sunday" },
   ];
 
+ 
+
   const handleAddFeature = async(feature) => {
     try {
       const phone = user?.phoneNumber?.slice(3);
@@ -1119,21 +1134,9 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // Determine initial tab to be active
-  const initialActiveTab = (() => {
-    // Prefer the user's current method if its tab is visible
-    if (showAddDailyAttendanceModal)
-      return "dailyAttendance";
-    else 
-      return "scheduleMeetings";
-
-    // Fallback to the first available tab
-    // if (showAddDailyAttendanceModal) return "dailyAttendance";
-    // if (showAddMeetingModal) return "scheduleMeetings";
-
-    // // A default if no tabs are available, though this case is unlikely
-    // return "dailyAttendance";
-  })();
+  const initialActiveTab = () => {
+    return showAddDailyAttendanceModal ? "dailyAttendance" : "scheduleMeetings";
+  };
 
   const showRequestButton = (targetFeature) => {
     // If the target feature is already enabled, no need for a request button
@@ -1149,9 +1152,7 @@ export default function AdminSettingsPage() {
     return !hasPendingRequestForFeature;
   };
 
-  if( showAddDailyAttendanceModal){
-    console.log("aidsbouabdoubfouadofboabdobcaosudcjlashocuavocbou")
-  }
+
 
   return (
     <div className="space-y-6 mt-10 mx-10">
@@ -1182,7 +1183,14 @@ export default function AdminSettingsPage() {
       </div>
 
       <Tabs
-        defaultValue={initialActiveTab}
+        value={showAddDailyAttendanceModal ? "dailyAttendance" : "scheduleMeetings"}
+        onValueChange={(value) => {
+          if (value === "dailyAttendance") {
+            setShowAddDailyAttendanceModal(true);
+          } else {
+            setShowAddDailyAttendanceModal(false);
+          }
+        }}
         className="w-full"
       >
         <TabsList
