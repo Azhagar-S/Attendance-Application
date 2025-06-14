@@ -55,6 +55,8 @@ export default function AdminPanelLayout({ children }) {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [userData, setUserData] = useState({name:''});
   const [companyName, setCompanyName] = useState('');
+
+  const [isDailtAttendance, setIsDailtAttendance] = useState(false);
   
 
   // check if user is admin
@@ -96,6 +98,7 @@ useEffect(()=>{
           };
           setUserData(userData);
           setCompanyName(userData.companyName);
+          setIsDailtAttendance(userData.tracingMethod === "Daily Attendance");
         } else {
           console.log("No user data found for phone number:", user.phoneNumber);
         }
@@ -179,14 +182,18 @@ useEffect(()=>{
       label: "Leave Management",
       icon: CalendarCheck,
     },
-    {
-      href: "/admin/wfh-management",
-      label: "WFH Management",
-      icon: Home,
-    },
+    
     { href: "/admin/settings", label: "Settings", icon: Settings },
   ];
 
+  if(isDailtAttendance){
+    // Insert WFH Management at index 3
+    navItems.splice(3, 0, {
+      href: "/admin/wfh-management",
+      label: "WFH Management",
+      icon: Home,
+    });
+  }
   const SidebarContent = () => (
     <nav className="flex flex-col gap-2 p-4">
       {navItems.map((item) => (
