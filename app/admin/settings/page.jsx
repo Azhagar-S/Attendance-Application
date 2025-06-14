@@ -518,21 +518,32 @@ export default function AdminSettingsPage() {
         const fetchedRequests = querySnap2.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setRequests(fetchedRequests);
 
-        let approvedDailyAttendance = userData.tracingMethod === "Daily Attendance";
-        let approvedScheduleMeetings = userData.tracingMethod === "Schedule Meetings";
+        let approvedDailyAttendance = false;
+        let approvedScheduleMeetings = false;
+   
+
+        if(userData.tracingMethod === "Daily Attendance"){
+          approvedDailyAttendance = true;
+        }else if(userData.tracingMethod === "Schedule Meetings"){
+          approvedScheduleMeetings = true;
+        }
+        
         let pendingRequestFound = false;
 
-        fetchedRequests.forEach(req => {
-          if (req.status === "Approved") {
-            if (req.requestedMethod === "Daily Attendance") {
-              approvedDailyAttendance = true;
-            } else if (req.requestedMethod === "Schedule Meetings") {
-              approvedScheduleMeetings = true;
-            }
-          } else if (req.status === "Pending") {
-            pendingRequestFound = true;
-          }
-        });
+
+
+        // fetchedRequests.forEach(req => {
+        //   if (req.status === "Approved") {
+        //     if (req.requestedMethod === "Daily Attendance") {
+        //       approvedDailyAttendance = true;
+        //     } else if (req.requestedMethod === "Schedule Meetings") {
+        //       approvedScheduleMeetings = true;
+        //     }
+        //   } else if (req.status === "Pending") {
+        //     pendingRequestFound = true;
+        //     approvedDailyAttendance = false;
+        //   }
+        // });
 
         // Update tab visibility based on current method and approved requests
         setShowAddDailyAttendanceModal(approvedDailyAttendance);
@@ -645,6 +656,9 @@ export default function AdminSettingsPage() {
     });
     return () => unsubscribe();
   }, []);
+
+
+  console.log(showAddDailyAttendanceModal , "showAddDailyAttendanceModal")
 
   const handleEmployeeSelect = (employee, type) => {
     const settingsUpdater = type === 'daily' ? setDailySettings : setMeetingSettings;
@@ -1108,17 +1122,17 @@ export default function AdminSettingsPage() {
   // Determine initial tab to be active
   const initialActiveTab = (() => {
     // Prefer the user's current method if its tab is visible
-    if (currentMethod === "Daily Attendance" && showAddDailyAttendanceModal)
+    if (showAddDailyAttendanceModal)
       return "dailyAttendance";
-    if (currentMethod === "Schedule Meetings" && showAddMeetingModal)
+    else 
       return "scheduleMeetings";
 
     // Fallback to the first available tab
-    if (showAddDailyAttendanceModal) return "dailyAttendance";
-    if (showAddMeetingModal) return "scheduleMeetings";
+    // if (showAddDailyAttendanceModal) return "dailyAttendance";
+    // if (showAddMeetingModal) return "scheduleMeetings";
 
-    // A default if no tabs are available, though this case is unlikely
-    return "dailyAttendance";
+    // // A default if no tabs are available, though this case is unlikely
+    // return "dailyAttendance";
   })();
 
   const showRequestButton = (targetFeature) => {
