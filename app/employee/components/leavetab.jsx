@@ -1,21 +1,58 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { toast as sonnerToast } from 'sonner';
+"use client";
+import { useEffect, useState } from "react";
+import { toast as sonnerToast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/datepicker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2 as PageLoader } from 'lucide-react';
-import { format } from 'date-fns';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Loader2 as PageLoader } from "lucide-react";
+import { format } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PenLine, Calendar, Clock, FileText, User } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PenLine, Calendar, Clock, FileText, User } from "lucide-react";
 import { db } from "@/app/firebase/config";
-import { query, collection, where, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
+import {
+  query,
+  collection,
+  where,
+  getDocs,
+  setDoc,
+  doc,
+  getDoc,
+} from "firebase/firestore";
+import { Switch } from "@/components/ui/switch";
 
 // Enhanced Logging System
 class Logger {
@@ -23,18 +60,18 @@ class Logger {
     ERROR: 0,
     WARN: 1,
     INFO: 2,
-    DEBUG: 3
+    DEBUG: 3,
   };
 
   static currentLevel = Logger.LOG_LEVELS.INFO;
 
-  static log(level, message, data = null, context = 'LeaveTab') {
+  static log(level, message, data = null, context = "LeaveTab") {
     if (level > Logger.currentLevel) return;
 
     const timestamp = new Date().toISOString();
-    const levelNames = ['ERROR', 'WARN', 'INFO', 'DEBUG'];
+    const levelNames = ["ERROR", "WARN", "INFO", "DEBUG"];
     const levelName = levelNames[level];
-    
+
     const logEntry = {
       timestamp,
       level: levelName,
@@ -42,28 +79,26 @@ class Logger {
       message,
       data,
       userAgent: navigator.userAgent,
-      url: window.location.href
+      url: window.location.href,
     };
 
     // Console logging with styling
     const styles = {
-      ERROR: 'color: #ff4444; font-weight: bold;',
-      WARN: 'color: #ffaa00; font-weight: bold;',
-      INFO: 'color: #4444ff;',
-      DEBUG: 'color: #888888;'
+      ERROR: "color: #ff4444; font-weight: bold;",
+      WARN: "color: #ffaa00; font-weight: bold;",
+      INFO: "color: #4444ff;",
+      DEBUG: "color: #888888;",
     };
-
-
 
     // Store in sessionStorage for debugging
     try {
-      const logs = JSON.parse(sessionStorage.getItem('app_logs') || '[]');
+      const logs = JSON.parse(sessionStorage.getItem("app_logs") || "[]");
       logs.push(logEntry);
       // Keep only last 100 logs
       if (logs.length > 100) logs.shift();
-      sessionStorage.setItem('app_logs', JSON.stringify(logs));
+      sessionStorage.setItem("app_logs", JSON.stringify(logs));
     } catch (e) {
-      console.warn('Failed to store log in sessionStorage:', e);
+      console.warn("Failed to store log in sessionStorage:", e);
     }
 
     // Send critical errors to external service (placeholder)
@@ -93,19 +128,19 @@ class Logger {
   static reportError(logEntry) {
     // Placeholder for external error reporting service
     // In production, you would send this to services like Sentry, LogRocket, etc.
-    console.log('🚨 Critical error reported:', logEntry);
+    console.log("🚨 Critical error reported:", logEntry);
   }
 
   static getLogs() {
     try {
-      return JSON.parse(sessionStorage.getItem('app_logs') || '[]');
+      return JSON.parse(sessionStorage.getItem("app_logs") || "[]");
     } catch (e) {
       return [];
     }
   }
 
   static clearLogs() {
-    sessionStorage.removeItem('app_logs');
+    sessionStorage.removeItem("app_logs");
   }
 }
 
@@ -122,7 +157,9 @@ class PerformanceMonitor {
     const startTime = PerformanceMonitor.timers.get(label);
     if (startTime) {
       const duration = performance.now() - startTime;
-      Logger.info(`Performance: ${label} completed in ${duration.toFixed(2)}ms`);
+      Logger.info(
+        `Performance: ${label} completed in ${duration.toFixed(2)}ms`
+      );
       PerformanceMonitor.timers.delete(label);
       return duration;
     }
@@ -136,10 +173,12 @@ export default function LeaveTab({ user }) {
   const [isApplyLeaveDialogOpen, setIsApplyLeaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date(new Date().setDate(new Date().getDate() + 1)));
-  const [leaveType, setLeaveType] = useState('');
-  const [reason, setReason] = useState('');
-  const [employeeData, setEmployeeData] = useState('');
+  const [endDate, setEndDate] = useState(
+    new Date(new Date().setDate(new Date().getDate() + 1))
+  );
+  const [leaveType, setLeaveType] = useState("");
+  const [reason, setReason] = useState("");
+  const [employeeData, setEmployeeData] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [leaveQuota, setLeaveQuota] = useState("");
   const [carryForward, setCarryForward] = useState(false);
@@ -152,162 +191,184 @@ export default function LeaveTab({ user }) {
   const [notClicked, setNotClicked] = useState(false);
   const [adminTrackingMethod, setAdminTrackingMethod] = useState(null);
 
+  const [partialLeave, setPartialLeave] = useState(false);
+  const [officeStartTime, setOfficeStartTime] = useState(null);
+  const [officeEndTime, setOfficeEndTime] = useState(null);
 
-  console.log("start time" , startTime);
-  console.log("end time" , endTime);
+  console.log("start time", startTime);
+  console.log("end time", endTime);
 
   // Check for mobile view
   useEffect(() => {
-    Logger.info('LeaveTab component mounted', { userId: user?.phoneNumber });
-    
+    Logger.info("LeaveTab component mounted", { userId: user?.phoneNumber });
+
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      Logger.debug('Screen size check', { width: window.innerWidth, isMobile: mobile });
+      Logger.debug("Screen size check", {
+        width: window.innerWidth,
+        isMobile: mobile,
+      });
     };
 
     checkMobile();
-    window.addEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
     return () => {
-      window.removeEventListener('resize', checkMobile);
-      Logger.info('LeaveTab component unmounted');
+      window.removeEventListener("resize", checkMobile);
+      Logger.info("LeaveTab component unmounted");
     };
   }, []);
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchEmployeeData = async () => {
       if (!user) {
-        Logger.warn('No user provided for employee data fetch');
+        Logger.warn("No user provided for employee data fetch");
         return;
       }
-      
-      PerformanceMonitor.start('fetchEmployeeData');
-      Logger.info('Starting employee data fetch', { userId: user.phoneNumber });
-      
+
+      PerformanceMonitor.start("fetchEmployeeData");
+      Logger.info("Starting employee data fetch", { userId: user.phoneNumber });
+
       try {
         const phone = user.phoneNumber.slice(3);
         const q = query(collection(db, "users"), where("phone", "==", phone));
         const querySnapshot = await getDocs(q);
-        
+
         if (!isMounted) {
-          Logger.debug('Component unmounted, skipping employee data update');
+          Logger.debug("Component unmounted, skipping employee data update");
           return;
         }
-        
+
         if (querySnapshot.empty) {
-          Logger.warn('No employee data found', { phone });
+          Logger.warn("No employee data found", { phone });
           return;
         }
-        
+
         const employeeData = querySnapshot.docs[0].data();
         setEmployeeData(employeeData);
-        
+
         // Fetch admin's tracking method from users collection
         if (employeeData.adminuid) {
-          const adminQuery = query(collection(db, "users"), where("uid", "==", employeeData.adminuid));
+          const adminQuery = query(
+            collection(db, "users"),
+            where("uid", "==", employeeData.adminuid)
+          );
           const adminSnapshot = await getDocs(adminQuery);
-          
+
           if (!adminSnapshot.empty) {
             const adminData = adminSnapshot.docs[0].data();
-            setAdminTrackingMethod(adminData.trackingMethod || 'monthly');
-            Logger.info('Admin tracking method fetched', { 
+            setAdminTrackingMethod(adminData.trackingMethod || "monthly");
+            Logger.info("Admin tracking method fetched", {
               adminId: employeeData.adminuid,
-              trackingMethod: adminData.trackingMethod 
+              trackingMethod: adminData.trackingMethod,
             });
           }
         }
 
         // Fetch leave requests
         await fetchLeaveRequests(employeeData.uid);
-        
+
         // Fetch leave quota
         await fetchLeaveQuota(employeeData.adminuid);
-        
-        Logger.info("Employee data fetched successfully", { 
+
+        // Fetch office start time
+        await fetchOfficeStartTime(employeeData.adminuid);
+
+        Logger.info("Employee data fetched successfully", {
           employeeId: employeeData.uid,
-          adminId: employeeData.adminuid
+          adminId: employeeData.adminuid,
         });
-        
-        PerformanceMonitor.end('fetchEmployeeData');
+
+        PerformanceMonitor.end("fetchEmployeeData");
       } catch (error) {
-        Logger.error("Error fetching employee data", error, 'fetchEmployeeData');
-        sonnerToast.error("Failed to load employee data", { 
-          description: "Please refresh the page or contact support." 
+        Logger.error(
+          "Error fetching employee data",
+          error,
+          "fetchEmployeeData"
+        );
+        sonnerToast.error("Failed to load employee data", {
+          description: "Please refresh the page or contact support.",
         });
-        PerformanceMonitor.end('fetchEmployeeData');
+        PerformanceMonitor.end("fetchEmployeeData");
       }
     };
-  
+
     const fetchLeaveRequests = async (employeeUid) => {
       if (!employeeUid) {
-        Logger.warn('No employee UID provided for leave requests fetch');
+        Logger.warn("No employee UID provided for leave requests fetch");
         return;
       }
-      
-      PerformanceMonitor.start('fetchLeaveRequests');
-      Logger.info('Starting leave requests fetch', { employeeUid });
-      
+
+      PerformanceMonitor.start("fetchLeaveRequests");
+      Logger.info("Starting leave requests fetch", { employeeUid });
+
       try {
         const leavesQuery = query(
           collection(db, "leaves"),
           where("employeeuid", "==", employeeUid)
         );
         const querySnapshot = await getDocs(leavesQuery);
-        
+
         if (!isMounted) {
-          Logger.debug('Component unmounted, skipping leave requests update');
+          Logger.debug("Component unmounted, skipping leave requests update");
           return;
         }
-        
+
         let count = 0;
         const requests = [];
         querySnapshot.forEach((doc) => {
-          
-
           requests.push({
             id: doc.id,
-            ...doc.data()
+            ...doc.data(),
           });
-       
-          
         });
 
         // Sort by applied date (newest first)
         requests.sort((a, b) => new Date(b.appliedOn) - new Date(a.appliedOn));
-        
+
         setLeaveRequests(requests);
 
-        console.log("requests" , requests);
+        console.log("requests", requests);
         // Calculate leaves taken this month
         setLeavesTakenThisMonth(calculateLeavesTakenThisMonth(requests));
-       
 
         // Calculate carried forward leaves
         setCarriedForwardLeaves(calculateCarriedForwardLeaves(requests));
-        
-        Logger.info("Leave requests fetched successfully", { 
+
+        Logger.info("Leave requests fetched successfully", {
           count: requests.length,
-          requests: requests.map(r => ({ id: r.id, status: r.status, appliedOn: r.appliedOn }))
+          requests: requests.map((r) => ({
+            id: r.id,
+            status: r.status,
+            appliedOn: r.appliedOn,
+          })),
         });
-        
-        PerformanceMonitor.end('fetchLeaveRequests');
+
+        PerformanceMonitor.end("fetchLeaveRequests");
       } catch (error) {
-        Logger.error("Error fetching leave requests", error, 'fetchLeaveRequests');
-        sonnerToast.error("Failed to load leave history", { 
-          description: "Please refresh the page or contact support." 
+        Logger.error(
+          "Error fetching leave requests",
+          error,
+          "fetchLeaveRequests"
+        );
+        sonnerToast.error("Failed to load leave history", {
+          description: "Please refresh the page or contact support.",
         });
-        PerformanceMonitor.end('fetchLeaveRequests');
+        PerformanceMonitor.end("fetchLeaveRequests");
       }
     };
 
     const fetchLeaveQuota = async (adminuid) => {
       console.log("adminuid", adminuid);
       try {
-        const leaveQuotaRef = query(collection(db, "Daily_attendance"), where("adminUid", "==", adminuid));
+        const leaveQuotaRef = query(
+          collection(db, "Daily_attendance"),
+          where("adminUid", "==", adminuid)
+        );
         const querySnapshot = await getDocs(leaveQuotaRef);
-        
+
         if (querySnapshot.empty) {
           console.log("No leave quota data found for adminuid:", adminuid);
           return;
@@ -315,26 +376,41 @@ export default function LeaveTab({ user }) {
 
         const leaveQuotaData = querySnapshot.docs[0].data();
         console.log("Leave quota data:", leaveQuotaData);
-        
+
         if (leaveQuotaData) {
           setLeaveQuota(leaveQuotaData.leaveQuota || 0);
           setCarryForward(leaveQuotaData.carryForward || false);
-          setMaximumDaysCarryForward(leaveQuotaData.maximumDaysCarryForward || 0);
+          setMaximumDaysCarryForward(
+            leaveQuotaData.maximumDaysCarryForward || 0
+          );
         }
       } catch (error) {
         console.error("Error fetching leave quota:", error);
         sonnerToast.error("Failed to load leave quota", {
-          description: "Please refresh the page or contact support."
+          description: "Please refresh the page or contact support.",
         });
       }
-    }
-  
+    };
+
+    const fetchOfficeStartTime = async (adminuid) => {
+      const officeStartTimeRef = query(
+        collection(db, "Daily_attendance"),
+        where("adminUid", "==", adminuid)
+      );
+      const querySnapshot = await getDocs(officeStartTimeRef);
+      if (!querySnapshot.empty) {
+        const officeStartTime = querySnapshot.docs[0].data().defaultStartTime;
+        setOfficeStartTime(officeStartTime);
+        const officeEndTime = querySnapshot.docs[0].data().defaultEndTime;
+        setOfficeEndTime(officeEndTime);
+      }
+    };
+
     fetchEmployeeData();
-    
-  
+
     return () => {
       isMounted = false;
-      Logger.debug('Cleanup: fetchEmployeeData effect unmounted');
+      Logger.debug("Cleanup: fetchEmployeeData effect unmounted");
     };
   }, [user]);
 
@@ -343,18 +419,19 @@ export default function LeaveTab({ user }) {
     if (startDate && endDate) {
       const isSameDay = startDate.toDateString() === endDate.toDateString();
       setAddTime(isSameDay);
-      Logger.debug('Date comparison', { 
-        startDate: startDate.toDateString(), 
+      if (isSameDay) {
+        setStartTime(officeStartTime);
+        setEndTime(officeEndTime);
+      }
+      Logger.debug("Date comparison", {
+        startDate: startDate.toDateString(),
         endDate: endDate.toDateString(),
-        isSameDay 
+        isSameDay,
       });
     }
   }, [startDate, endDate]);
 
-console.log("leave quota" , leaveQuota);
-
-
-
+  console.log("leave quota", leaveQuota);
 
   // Add function to calculate leaves taken in current month
   const calculateLeavesTakenThisMonth = (requests) => {
@@ -363,20 +440,20 @@ console.log("leave quota" , leaveQuota);
     const currentYear = currentDate.getFullYear();
 
     return requests.reduce((total, request) => {
-
-      console.log("total value" , total);
+      console.log("total value", total);
       const requestDate = new Date(request.startDate);
-   
-      if (requestDate.getMonth() === currentMonth && 
-          requestDate.getFullYear() === currentYear && 
-          (request.status === 'Approved' || request.status === 'Pending')) {
+
+      if (
+        requestDate.getMonth() === currentMonth &&
+        requestDate.getFullYear() === currentYear &&
+        (request.status === "Approved" || request.status === "Pending")
+      ) {
         // Calculate number of days between start and end date
         const start = new Date(request.startDate);
         const end = new Date(request.endDate);
-   
 
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) ;
-        return total + days ;
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        return total + days;
       }
       return total;
     }, 0);
@@ -387,18 +464,20 @@ console.log("leave quota" , leaveQuota);
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
-    
+
     // Get last month's date
     const lastMonth = new Date(currentYear, currentMonth - 1, 1);
     const lastMonthYear = lastMonth.getFullYear();
     const lastMonthMonth = lastMonth.getMonth();
 
     // Calculate unused leaves from last month
-    const lastMonthLeaves = requests.filter(request => {
+    const lastMonthLeaves = requests.filter((request) => {
       const requestDate = new Date(request.startDate);
-      return requestDate.getMonth() === lastMonthMonth && 
-             requestDate.getFullYear() === lastMonthYear && 
-             request.status === 'Approved';
+      return (
+        requestDate.getMonth() === lastMonthMonth &&
+        requestDate.getFullYear() === lastMonthYear &&
+        request.status === "Approved"
+      );
     });
 
     const lastMonthDaysTaken = lastMonthLeaves.reduce((total, request) => {
@@ -410,20 +489,21 @@ console.log("leave quota" , leaveQuota);
 
     // Calculate unused leaves
     const unusedLeaves = Math.max(0, leaveQuota - lastMonthDaysTaken);
-    
+
     // Apply maximum carry forward limit
     return Math.min(unusedLeaves, maximumDaysCarryForward || 0);
   };
 
-  console.log("leavesTakenThisMonth" , leavesTakenThisMonth);
+  console.log("leavesTakenThisMonth", leavesTakenThisMonth);
 
-  const handleApplyLeaveSubmit = async(e) => {
+  const handleApplyLeaveSubmit = async (e) => {
     e.preventDefault();
 
     // Check if admin tracking method is enabled
     if (!adminTrackingMethod) {
       sonnerToast.error("Leave System Not Configured", {
-        description: "Please contact your administrator to configure the leave system."
+        description:
+          "Please contact your administrator to configure the leave system.",
       });
       return;
     }
@@ -433,12 +513,22 @@ console.log("leave quota" , leaveQuota);
     const end = new Date(endDate);
     const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
+    const wantsDate = leaveQuota / 12 - daysRequested;
+
+    if (wantsDate <= 0) {
+      sonnerToast.error("Leave Quota Exceeded", {
+        description: `You can only take ${wantsDate} days of leave per month.`,
+      });
+      return;
+    }
+
     // Check if employee has any available leaves
-    const totalAvailableLeaves = leaveQuota + (carryForward ? carriedForwardLeaves : 0);
-    
+    const totalAvailableLeaves =
+      leaveQuota + (carryForward ? carriedForwardLeaves : 0);
+
     if (totalAvailableLeaves <= 0) {
       sonnerToast.error("No Leaves Available", {
-        description: "You don't have any leaves available for this month."
+        description: "You don't have any leaves available for this month.",
       });
       return;
     }
@@ -452,18 +542,23 @@ console.log("leave quota" , leaveQuota);
     const endMonth = end.getMonth();
     const endYear = end.getFullYear();
 
-    if (startMonth !== currentMonth || startYear !== currentYear || 
-        endMonth !== currentMonth || endYear !== currentYear) {
+    if (
+      startMonth !== currentMonth ||
+      startYear !== currentYear ||
+      endMonth !== currentMonth ||
+      endYear !== currentYear
+    ) {
       sonnerToast.error("Invalid Date Range", {
-        description: "Leave can only be applied for the current month."
+        description: "Leave can only be applied for the current month.",
       });
       return;
     }
 
     // Check monthly leave count based on admin tracking method
-    if (adminTrackingMethod === 'monthly' && leavesTakenThisMonth >= 1) {
+    if (adminTrackingMethod === "monthly" && leavesTakenThisMonth >= 1) {
       sonnerToast.error("Monthly Leave Limit Reached", {
-        description: "You have already taken your monthly leave. Please contact your manager for additional leaves."
+        description:
+          "You have already taken your monthly leave. Please contact your manager for additional leaves.",
       });
       return;
     }
@@ -471,7 +566,7 @@ console.log("leave quota" , leaveQuota);
     // Check if the requested days exceed the monthly quota
     if (daysRequested > leaveQuota) {
       sonnerToast.error("Leave Quota Exceeded", {
-        description: `You can only take ${leaveQuota} days of leave per month.`
+        description: `You can only take ${leaveQuota} days of leave per month.`,
       });
       return;
     }
@@ -479,7 +574,7 @@ console.log("leave quota" , leaveQuota);
     // Check if the requested days exceed the carry forward limit
     if (carryForward && daysRequested > maximumDaysCarryForward) {
       sonnerToast.error("Carry Forward Limit Exceeded", {
-        description: `You can only carry forward up to ${maximumDaysCarryForward} days.`
+        description: `You can only carry forward up to ${maximumDaysCarryForward} days.`,
       });
       return;
     }
@@ -490,43 +585,46 @@ console.log("leave quota" , leaveQuota);
         hasStartDate: !!startDate,
         hasEndDate: !!endDate,
         hasReason: !!reason.trim(),
-        hasLeaveType: !!leaveType
+        hasLeaveType: !!leaveType,
       });
-      sonnerToast.error("Missing Information", { 
-        description: "Please fill all fields: dates, leave type, and reason." 
+      sonnerToast.error("Missing Information", {
+        description: "Please fill all fields: dates, leave type, and reason.",
       });
       return;
     }
 
-    const currentDateString = new Date().toLocaleDateString().split('T')[0];
-    const startDateString = startDate.toLocaleDateString().split('T')[0];
-    
+    const currentDateString = new Date().toLocaleDateString().split("T")[0];
+    const startDateString = startDate.toLocaleDateString().split("T")[0];
+
     if (startDateString < currentDateString) {
-      sonnerToast.error("Invalid Dates", { 
-        description: "Start date cannot be before current date." 
+      sonnerToast.error("Invalid Dates", {
+        description: "Start date cannot be before current date.",
       });
       return;
     }
 
-    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const currentTime = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-    if(startTime < currentTime || endTime < currentTime){
+    if (startTime < currentTime || endTime < currentTime) {
       sonnerToast.error("Invalid Time", {
-        description: "Start time cannot be before current time."
+        description: "Start time cannot be before current time.",
       });
       return;
     }
 
-    if(startTime > endTime){
+    if (startTime > endTime) {
       sonnerToast.error("Invalid Time", {
-        description: "Start time cannot be after end time."
+        description: "Start time cannot be after end time.",
       });
       return;
     }
 
     setIsLoading(true);
-    PerformanceMonitor.start('submitLeaveRequest');
-    
+    PerformanceMonitor.start("submitLeaveRequest");
+
     try {
       const newRequest = {
         name: employeeData.name,
@@ -536,60 +634,75 @@ console.log("leave quota" , leaveQuota);
         leaveType,
         startTime,
         endTime,
-        status: 'Pending',
+        status: "Pending",
         appliedOn: format(new Date(), "yyyy-MM-dd"),
         employeeuid: employeeData.uid,
         adminuid: employeeData.adminuid,
         daysRequested: daysRequested,
-        monthlyLeaveCount: leavesTakenThisMonth 
+        monthlyLeaveCount: leavesTakenThisMonth,
       };
-      
-      Logger.debug('Creating leave request document', newRequest);
-      
-      const {id, ...newLeaveRequest} = newRequest;
+
+      Logger.debug("Creating leave request document", newRequest);
+
+      const { id, ...newLeaveRequest } = newRequest;
       const newLeaveRequestRef = doc(collection(db, "leaves"));
       await setDoc(newLeaveRequestRef, newLeaveRequest);
-      
+
       // Add the new request to local state
       const requestWithId = { ...newRequest, id: newLeaveRequestRef.id };
-      setLeaveRequests(prev => [requestWithId, ...prev]);
-      
-     
-      
-      sonnerToast.success("Leave Applied Successfully!", { 
-        description: `Your request for ${daysRequested} days is pending approval.` 
+      setLeaveRequests((prev) => [requestWithId, ...prev]);
+
+      sonnerToast.success("Leave Applied Successfully!", {
+        description: `Your request for ${daysRequested} days is pending approval.`,
       });
-      
+
       // Reset form
       setStartDate(undefined);
       setEndDate(undefined);
-      setReason('');
-      setLeaveType('');
+      setReason("");
+      setLeaveType("");
       setIsApplyLeaveDialogOpen(false);
-      
-      PerformanceMonitor.end('submitLeaveRequest');
+
+      PerformanceMonitor.end("submitLeaveRequest");
     } catch (error) {
-      Logger.error("Error submitting leave request", error, 'handleApplyLeaveSubmit');
-      sonnerToast.error("Failed to submit leave request", { 
-        description: "Please try again later or contact support." 
+      Logger.error(
+        "Error submitting leave request",
+        error,
+        "handleApplyLeaveSubmit"
+      );
+      sonnerToast.error("Failed to submit leave request", {
+        description: "Please try again later or contact support.",
       });
-      PerformanceMonitor.end('submitLeaveRequest');
+      PerformanceMonitor.end("submitLeaveRequest");
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const getStatusBadge = (status) => {
-    Logger.debug('Rendering status badge', { status });
-    
-    if (status.trim() === 'Approved') return <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>;
-    if (status.trim() === 'Rejected') return <Badge variant="destructive">Rejected</Badge>;
-    return <Badge variant="outline" className="text-yellow-600 border-yellow-500 bg-yellow-50">Pending</Badge>;
+    Logger.debug("Rendering status badge", { status });
+
+    if (status.trim() === "Approved")
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>
+      );
+    if (status.trim() === "Rejected")
+      return <Badge variant="destructive">Rejected</Badge>;
+    return (
+      <Badge
+        variant="outline"
+        className="text-yellow-600 border-yellow-500 bg-yellow-50"
+      >
+        Pending
+      </Badge>
+    );
   };
 
   const renderMobileCards = () => {
-    Logger.debug('Rendering mobile cards view', { requestCount: leaveRequests.length });
-    
+    Logger.debug("Rendering mobile cards view", {
+      requestCount: leaveRequests.length,
+    });
+
     return (
       <div className="space-y-4">
         {leaveRequests.map((req, index) => (
@@ -604,22 +717,23 @@ console.log("leave quota" , leaveQuota);
                 </div>
                 {getStatusBadge(req.status)}
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Clock className="h-4 w-4 text-gray-500" />
                   <span className="text-sm">
-                    {format(new Date(req.startDate), "dd MMM")} - {format(new Date(req.endDate), "dd MMM yyyy")}
+                    {format(new Date(req.startDate), "dd MMM")} -{" "}
+                    {format(new Date(req.endDate), "dd MMM yyyy")}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-gray-500" />
                   <Badge variant="secondary" className="text-xs">
                     {req.leaveType}
                   </Badge>
                 </div>
-                
+
                 <div className="flex items-start space-x-2">
                   <FileText className="h-4 w-4 text-gray-500 mt-0.5" />
                   <span className="text-sm text-gray-600 line-clamp-2">
@@ -635,8 +749,10 @@ console.log("leave quota" , leaveQuota);
   };
 
   const renderDesktopTable = () => {
-    Logger.debug('Rendering desktop table view', { requestCount: leaveRequests.length });
-    
+    Logger.debug("Rendering desktop table view", {
+      requestCount: leaveRequests.length,
+    });
+
     return (
       <div className="overflow-x-auto">
         <Table>
@@ -653,11 +769,20 @@ console.log("leave quota" , leaveQuota);
           <TableBody>
             {leaveRequests.map((req, index) => (
               <TableRow key={req.id || index}>
-                <TableCell>{format(new Date(req.appliedOn), "dd/MM/yy")}</TableCell>
-                <TableCell>{format(new Date(req.startDate), "dd/MM/yy")}</TableCell>
-                <TableCell>{format(new Date(req.endDate), "dd/MM/yy")}</TableCell>
+                <TableCell>
+                  {format(new Date(req.appliedOn), "dd/MM/yy")}
+                </TableCell>
+                <TableCell>
+                  {format(new Date(req.startDate), "dd/MM/yy")}
+                </TableCell>
+                <TableCell>
+                  {format(new Date(req.endDate), "dd/MM/yy")}
+                </TableCell>
                 <TableCell>{req.leaveType}</TableCell>
-                <TableCell className="max-w-[150px] sm:max-w-[200px] truncate" title={req.reason}>
+                <TableCell
+                  className="max-w-[150px] sm:max-w-[200px] truncate"
+                  title={req.reason}
+                >
                   {req.reason}
                 </TableCell>
                 <TableCell>{getStatusBadge(req.status)}</TableCell>
@@ -669,19 +794,19 @@ console.log("leave quota" , leaveQuota);
     );
   };
 
-  Logger.debug('LeaveTab render', { 
-    leaveRequestCount: leaveRequests.length, 
-    isMobile, 
+  Logger.debug("LeaveTab render", {
+    leaveRequestCount: leaveRequests.length,
+    isMobile,
     isLoading,
-    hasEmployeeData: !!employeeData
+    hasEmployeeData: !!employeeData,
   });
 
   return (
     <div className="space-y-6">
       <div className="text-right">
-        <Button 
+        <Button
           onClick={() => {
-            Logger.info('Apply for Leave dialog opened');
+            Logger.info("Apply for Leave dialog opened");
             setIsApplyLeaveDialogOpen(true);
           }}
         >
@@ -690,98 +815,145 @@ console.log("leave quota" , leaveQuota);
       </div>
 
       {/* Apply Leave Dialog */}
-      <Dialog 
-        open={isApplyLeaveDialogOpen} 
+      <Dialog
+        open={isApplyLeaveDialogOpen}
         onOpenChange={(open) => {
-          Logger.info(`Apply for Leave dialog ${open ? 'opened' : 'closed'}`);
+          Logger.info(`Apply for Leave dialog ${open ? "opened" : "closed"}`);
           setIsApplyLeaveDialogOpen(open);
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Apply for Leave</DialogTitle>
-            <DialogDescription>Fill in the details for your leave request.</DialogDescription>
+            <DialogDescription>
+              Fill in the details for your leave request.
+            </DialogDescription>
             {leavesTakenThisMonth >= 1 && (
-              <p className="text-sm text-red-500">You have already taken {leavesTakenThisMonth} days of leave this month.</p>
+              <p className="text-sm text-red-500">
+                You have already taken {leavesTakenThisMonth} days of leave this
+                month.
+              </p>
             )}
             {carryForward && carriedForwardLeaves > 0 && (
-              <p className="text-sm text-green-500">You have {carriedForwardLeaves} days carried forward from last month.</p>
+              <p className="text-sm text-green-500">
+                You have {carriedForwardLeaves} days carried forward from last
+                month.
+              </p>
             )}
           </DialogHeader>
           <form onSubmit={handleApplyLeaveSubmit} className="space-y-4 py-2">
+            {addTime && (
+              <div className="flex items-center space-x-2 justify-end">
+                <Label htmlFor="partialLeave">Partial Leave</Label>
+                <Switch
+                  id="partialLeave"
+                  checked={partialLeave}
+                  onCheckedChange={() => {
+                    setPartialLeave(!partialLeave);
+                    Logger.debug("Partial leave selected", {
+                      partialLeave: !partialLeave,
+                    });
+                  }}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="leaveStartDate">Start Date (Leave Duration)</Label>
-                <DatePicker 
-                  date={startDate} 
+                <Label htmlFor="leaveStartDate">
+                  Start Date (Leave Duration)
+                </Label>
+                <DatePicker
+                  date={startDate}
                   onChange={(date) => {
                     setStartDate(date);
-                    Logger.debug('Start date selected', { date });
+                    Logger.debug("Start date selected", { date });
                   }}
                   setDate={(date) => {
                     setStartDate(date);
-                    Logger.debug('Start date selected', { date });
-                  }} 
-                  className="w-full" 
+                    Logger.debug("Start date selected", { date });
+                  }}
+                  className="w-full"
                 />
               </div>
               <div>
                 <Label htmlFor="leaveEndDate">End Date (Leave Duration)</Label>
-                <DatePicker 
-                  date={endDate} 
+                <DatePicker
+                  date={endDate}
                   onChange={(date) => {
                     setEndDate(date);
-                    Logger.debug('End date selected', { date });
+                    Logger.debug("End date selected", { date });
                   }}
                   setDate={(date) => {
                     setEndDate(date);
-                    Logger.debug('End date selected', { date });
-                  }} 
-                  className="w-full" 
+                    Logger.debug("End date selected", { date });
+                  }}
+                  className="w-full"
                 />
               </div>
             </div>
 
             {addTime && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="leaveStartTime">Start Time</Label>
-                  <Input
-                    id="leaveStartTime"
-                    name="leaveStartTime"
-                    type="time"
-                    value={startTime?startTime:new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    onChange={(e) => {
-                      setStartTime(e.target.value);
-                      Logger.debug('Start time selected', { time: e.target.value });
-                    }}
-                    className="w-full"
-                  />
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="leaveStartTime">Start Time</Label>
+                    <Input
+                      id="leaveStartTime"
+                      name="leaveStartTime"
+                      type="time"
+                      value={
+                        startTime
+                          ? startTime
+                          : new Date().toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                      }
+                      onChange={(e) => {
+                        setStartTime(e.target.value);
+                        Logger.debug("Start time selected", {
+                          time: e.target.value,
+                        });
+                      }}
+                      className="w-full"
+                      disabled={!partialLeave}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="leaveEndTime">End Time</Label>
+                    <Input
+                      id="leaveEndTime"
+                      name="leaveEndTime"
+                      type="time"
+                      value={
+                        endTime
+                          ? endTime
+                          : new Date().toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                      }
+                      onChange={(e) => {
+                        setEndTime(e.target.value);
+                        Logger.debug("End time selected", {
+                          time: e.target.value,
+                        });
+                      }}
+                      className="w-full"
+                      disabled={!partialLeave}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="leaveEndTime">End Time</Label>
-                  <Input
-                    id="leaveEndTime"
-                    name="leaveEndTime"
-                    type="time"
-                    value={endTime?endTime:new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    onChange={(e) => {
-                      setEndTime(e.target.value);
-                      Logger.debug('End time selected', { time: e.target.value });
-                    }}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+              </>
             )}
 
             <div>
               <Label htmlFor="leaveType">Leave Type</Label>
-              <Select 
-                value={leaveType} 
+              <Select
+                value={leaveType}
                 onValueChange={(value) => {
                   setLeaveType(value);
-                  Logger.debug('Leave type selected', { leaveType: value });
+                  Logger.debug("Leave type selected", { leaveType: value });
                 }}
               >
                 <SelectTrigger id="leaveType">
@@ -790,7 +962,9 @@ console.log("leave quota" , leaveQuota);
                 <SelectContent>
                   <SelectItem value="Sick">Sick Leave</SelectItem>
                   <SelectItem value="Casual">Casual Leave</SelectItem>
-                  <SelectItem value="Vacation">Vacation / Earned Leave</SelectItem>
+                  <SelectItem value="Vacation">
+                    Vacation / Earned Leave
+                  </SelectItem>
                   <SelectItem value="Unpaid">Unpaid Leave</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
@@ -798,36 +972,42 @@ console.log("leave quota" , leaveQuota);
             </div>
             <div>
               <Label htmlFor="leaveReason">Reason</Label>
-              <Textarea 
-                id="leaveReason" 
-                value={reason} 
+              <Textarea
+                id="leaveReason"
+                value={reason}
                 onChange={(e) => {
                   setReason(e.target.value);
-                  Logger.debug('Reason updated', { reasonLength: e.target.value.length });
-                }} 
-                placeholder="Briefly state the reason for your leave" 
-                required 
+                  Logger.debug("Reason updated", {
+                    reasonLength: e.target.value.length,
+                  });
+                }}
+                placeholder="Briefly state the reason for your leave"
+                required
               />
             </div>
             <DialogFooter className="sm:justify-start pt-2">
-
-              <Button type="submit" disabled={isLoading} 
-              
-              className={`w-full sm:w-auto${notClicked ? ` cursor-not-allowed`: ``}`}>
-                {isLoading ? <PageLoader className="mr-2 h-4 w-4 animate-spin" /> : "Submit Request"}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className={`w-full sm:w-auto${
+                  notClicked ? ` cursor-not-allowed` : ``
+                }`}
+              >
+                {isLoading ? (
+                  <PageLoader className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Submit Request"
+                )}
               </Button>
               <DialogClose asChild>
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   className="w-full sm:w-auto mt-2 sm:mt-0"
-                  onClick={() => Logger.info('Leave application cancelled')}
+                  onClick={() => Logger.info("Leave application cancelled")}
                 >
                   Cancel
                 </Button>
-
-
-                
               </DialogClose>
             </DialogFooter>
           </form>
@@ -902,15 +1082,14 @@ console.log("leave quota" , leaveQuota);
         </CardHeader>
         <CardContent>
           {leaveRequests.length === 0 ? (
-            <p className="text-muted-foreground">You have not applied for any leave yet.</p>
+            <p className="text-muted-foreground">
+              You have not applied for any leave yet.
+            </p>
           ) : (
-            <>
-              {isMobile ? renderMobileCards() : renderDesktopTable()}
-            </>
+            <>{isMobile ? renderMobileCards() : renderDesktopTable()}</>
           )}
         </CardContent>
       </Card>
-
     </div>
   );
-};
+}
