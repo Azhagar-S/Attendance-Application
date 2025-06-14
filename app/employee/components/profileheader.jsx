@@ -87,6 +87,9 @@ export function DailyAttendance({
   currentLocation,
   user,
 }) {
+
+  const [isYetSet, setIsYetSet] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [isCheckedOut, setIsCheckedOut] = useState(false);
@@ -171,6 +174,10 @@ export function DailyAttendance({
           where("adminUid", "==", adminUid)
         );
         const dailySettingsSnapshot = await getDocs(dailySettingsQuery);
+
+        if(dailySettingsSnapshot.empty){
+          setIsYetSet(true);
+        }
 
         if (!dailySettingsSnapshot.empty) {
           const settings = dailySettingsSnapshot.docs[0].data();
@@ -1153,8 +1160,13 @@ export function DailyAttendance({
   };
 
   return (
+
+    
     <div className="space-y-3 self-center">
-      <p className="text-sm text-muted-foreground font-semibold">
+
+      {!isYetSet && (
+        <div>
+           <p className="text-sm text-muted-foreground font-semibold">
         Log your daily start and end times.
       </p>
       {!isCheckedIn && (
@@ -1188,6 +1200,10 @@ export function DailyAttendance({
           Attendance Marked for Today
         </Button>
       )}
+
+          </div>
+      )}
+      
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
@@ -1227,7 +1243,7 @@ export function DailyAttendance({
             {/* Enhanced Map Location Tracker */}
 
 
-            {isWfhApproved && (
+            {!isWfhApproved && (
                <MapLocationTracker
                currentLocation={geoLocation}
                onLocationChange={handleLocationChange}
