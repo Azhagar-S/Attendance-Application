@@ -142,6 +142,8 @@ export default function MemberPage() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isWFhEnabled, setIsWFhEnabled] = useState(false);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -180,11 +182,26 @@ export default function MemberPage() {
             uid: userDoc.id,
           };
           setProfile(userData);
+          fetchAdmin(userData.adminuid);
         } else {
           console.log("No user data found for phone number:", phoneNumber);
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+      }
+    };
+
+
+    const fetchAdmin = async (adminuid) => {
+      const q = query(collection(db, "users"), where("uid", "==", adminuid));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const adminData = querySnapshot.docs[0].data();
+        if(adminData.tracingMethod === "Schedule Meetings"){
+          setIsWFhEnabled(true);
+        }else{
+          setIsWFhEnabled(false);
+        }
       }
     };
     fetchProfile();
@@ -584,6 +601,10 @@ export default function MemberPage() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+
+                  {/* WFH Request */}
+
+                 {!isWFhEnabled && (
                   <Dialog
                     open={showWfhRequestDialog}
                     onOpenChange={setShowWfhRequestDialog}
@@ -895,6 +916,7 @@ export default function MemberPage() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+                 )}
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="text-red-600 focus:text-red-600 focus:bg-red-50"
@@ -1011,19 +1033,24 @@ export default function MemberPage() {
 
       {/* Tabs for History */}
       <Tabs defaultValue="attendanceHistory" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="attendanceHistory">
+        <TabsList className={`grid w-full grid-cols-1 sm:grid-cols-2  gap-2 ${!isWFhEnabled ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <TabsTrigger value="attendanceHistory" className="flex items-center justify-center">
             <CalendarDays className="mr-2 h-4 w-4" />
-            Attendance History
+            <span className="hidden sm:inline">Attendance History</span>
+            <span className="sm:hidden">Attendance</span>
           </TabsTrigger>
-          <TabsTrigger value="leaveHistory">
+          <TabsTrigger value="leaveHistory" className="flex items-center justify-center">
             <Briefcase className="mr-2 h-4 w-4" />
-            Leave Records
+            <span className="hidden sm:inline">Leave Records</span>
+            <span className="sm:hidden">Leaves</span>
           </TabsTrigger>
-          <TabsTrigger value="wfhHistory">
-            <Home className="mr-2 h-4 w-4" />
-            WFH History
-          </TabsTrigger>
+          {!isWFhEnabled && (
+            <TabsTrigger value="wfhHistory" className="flex items-center justify-center">
+              <Home className="mr-2 h-4 w-4" />
+              <span className="hidden sm:inline">WFH History</span>
+              <span className="sm:hidden">WFH</span>
+            </TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="attendanceHistory" className="mt-4">
           <Attendancehistory employeeId={profile.uid} user={user} />
@@ -1031,9 +1058,11 @@ export default function MemberPage() {
         <TabsContent value="leaveHistory" className="mt-4">
           <Leavetab employeeId={profile.uid} user={user} />
         </TabsContent>
-        <TabsContent value="wfhHistory" className="mt-4">
-          <WfhHistory employeeId={profile.uid} />
-        </TabsContent>
+        {!isWFhEnabled && (
+          <TabsContent value="wfhHistory" className="mt-4">
+            <WfhHistory employeeId={profile.uid} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

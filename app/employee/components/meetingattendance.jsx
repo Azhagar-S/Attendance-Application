@@ -479,6 +479,12 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [user, setUser] = useState(null);
 
+  const [locationSettings, setLocationSettings] = useState({
+    latitude: null,
+    longitude: null,
+    radius: null,
+  });
+
   const [realAbsent, setRealAbsent] = useState(false);
 
   const [currentTime , setCurrentTime] = useState(new Date());
@@ -573,6 +579,7 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
     
         // Call fetchCheckAndStatus (assuming it handles additional attendance logic)
         fetchCheckAndStatus(employeeId);
+        fetchLocationSettings(admin_uid);
       } catch (error) {
         console.error('Error fetching meetings:', error);
         setTodaysMeetings([]); // Clear meetings on error
@@ -607,6 +614,21 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
         console.error("Error fetching check and status:", error);
       }
     };
+
+
+    const fetchLocationSettings = async (admin_uid) => {
+      const q = query(collection(db, "users"), where("uid", "==", admin_uid));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return;
+      const adminData = snapshot.docs[0].data();
+      console.log("adminData", adminData);
+      const officeLocation = adminData.officeLocation;
+      setLocationSettings({
+        latitude: officeLocation.latitude,
+        longitude: officeLocation.longitude,
+        radius: officeLocation.radius || 50,
+      });
+    }
     
   },[])
 
@@ -630,10 +652,33 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
       // return diff > 30;
     };
 
+
+
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371e3; // Earth's radius in meters
+      const φ1 = (lat1 * Math.PI) / 180;
+      const φ2 = (lat2 * Math.PI) / 180;
+      const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+      const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+      console.log("distance", R * c)
+      return R * c; // Distance in meters
+    };
+
+
+
+
   const handleCheckIn = async () => {
     setIsLoading(true);
 
-    try {
+
+    
+  
+    try { 
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
       const nowTime = format(new Date(), "hh:mm");
@@ -736,7 +781,36 @@ export default function Meetingattendance({ onMarkSuccess, currentLocation }) {
       return;
     }
 
+    
+
     setIsLoading(true);
+
+    try {
+
+      const distance = calculateDistance(locationSettings.latitude, locationSettings.longitude, geoLocation.latitude, geoLocation.longitude);
+
+      if (distance > locationSettings.radius) {
+
+
+       sonnerToast.error("Check-in Failed", {
+         description:
+           "You are not in the office location.",
+          });
+
+          return;
+        }
+
+     
+
+   } catch (error) {
+     sonnerToast.error("Check-in Failed", {
+       description:
+         error.message || "Failed to process check-in. Please try again.",
+     });
+     return;
+   }
+
+   
     await handleCheckIn();
     
     try {

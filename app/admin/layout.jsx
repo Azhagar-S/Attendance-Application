@@ -55,6 +55,7 @@ export default function AdminPanelLayout({ children }) {
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [userData, setUserData] = useState({name:''});
   const [companyName, setCompanyName] = useState('');
+  
 
   // check if user is admin
 

@@ -235,8 +235,8 @@ export default function LoginForm() {
             if (!requestSnapshot.empty) {
                 // User exists in request collection, create user document
                 const requestData = requestSnapshot.docs[0].data();
-                const newUserData = await createUserFromRequest(requestData, authenticatedUser);
-                await handleUserRouting(newUserData);
+                // const newUserData = await createUserFromRequest(requestData, authenticatedUser);
+                await handleUserRouting(requestData);
                 return;
             }
 

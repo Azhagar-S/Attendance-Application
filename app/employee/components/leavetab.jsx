@@ -149,7 +149,8 @@ export default function LeaveTab({ user }) {
   const [addTime, setAddTime] = useState(false);
   const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
-
+  const [notClicked, setNotClicked] = useState(false);
+  const [adminTrackingMethod, setAdminTrackingMethod] = useState(null);
 
 
   console.log("start time" , startTime);
@@ -177,49 +178,61 @@ export default function LeaveTab({ user }) {
     let isMounted = true;
     
     const fetchEmployeeData = async () => {
-      if (!user?.phoneNumber) {
-        Logger.warn('No user phone number provided', { user });
+      if (!user) {
+        Logger.warn('No user provided for employee data fetch');
         return;
       }
       
       PerformanceMonitor.start('fetchEmployeeData');
-      Logger.info('Starting employee data fetch', { phoneNumber: user.phoneNumber });
+      Logger.info('Starting employee data fetch', { userId: user.phoneNumber });
       
       try {
-        // Fetch employee data first
         const phone = user.phoneNumber.slice(3);
-        Logger.debug('Processed phone number', { originalPhone: user.phoneNumber, processedPhone: phone });
+        const q = query(collection(db, "users"), where("phone", "==", phone));
+        const querySnapshot = await getDocs(q);
         
-        const usersQuery = query(collection(db, "users"), where("phone", "==", phone));
-        const userSnapshot = await getDocs(usersQuery);
-        
-        if (userSnapshot.empty) {
-          Logger.warn("No user data found in database", { phone });
-          return;
-        }
-        
-        const userData = userSnapshot.docs[0].data();
         if (!isMounted) {
-          Logger.debug('Component unmounted, skipping state update');
+          Logger.debug('Component unmounted, skipping employee data update');
           return;
         }
         
-        setEmployeeData(userData);
-        Logger.info("Employee data fetched successfully", { 
-          uid: userData.uid, 
-          name: userData.name,
-          adminuid: userData.adminuid 
-        });
-        
-        // Then fetch leave requests using the employee UID
-        if (userData.uid) {
-          await fetchLeaveRequests(userData.uid);
-          await fetchLeaveQuota(userData.adminuid);
+        if (querySnapshot.empty) {
+          Logger.warn('No employee data found', { phone });
+          return;
         }
+        
+        const employeeData = querySnapshot.docs[0].data();
+        setEmployeeData(employeeData);
+        
+        // Fetch admin's tracking method from users collection
+        if (employeeData.adminuid) {
+          const adminQuery = query(collection(db, "users"), where("uid", "==", employeeData.adminuid));
+          const adminSnapshot = await getDocs(adminQuery);
+          
+          if (!adminSnapshot.empty) {
+            const adminData = adminSnapshot.docs[0].data();
+            setAdminTrackingMethod(adminData.trackingMethod || 'monthly');
+            Logger.info('Admin tracking method fetched', { 
+              adminId: employeeData.adminuid,
+              trackingMethod: adminData.trackingMethod 
+            });
+          }
+        }
+
+        // Fetch leave requests
+        await fetchLeaveRequests(employeeData.uid);
+        
+        // Fetch leave quota
+        await fetchLeaveQuota(employeeData.adminuid);
+        
+        Logger.info("Employee data fetched successfully", { 
+          employeeId: employeeData.uid,
+          adminId: employeeData.adminuid
+        });
         
         PerformanceMonitor.end('fetchEmployeeData');
       } catch (error) {
-        Logger.error("Error in fetchEmployeeData", error, 'fetchEmployeeData');
+        Logger.error("Error fetching employee data", error, 'fetchEmployeeData');
         sonnerToast.error("Failed to load employee data", { 
           description: "Please refresh the page or contact support." 
         });
@@ -269,6 +282,8 @@ export default function LeaveTab({ user }) {
         console.log("requests" , requests);
         // Calculate leaves taken this month
         setLeavesTakenThisMonth(calculateLeavesTakenThisMonth(requests));
+       
+
         // Calculate carried forward leaves
         setCarriedForwardLeaves(calculateCarriedForwardLeaves(requests));
         
@@ -338,6 +353,9 @@ export default function LeaveTab({ user }) {
 
 console.log("leave quota" , leaveQuota);
 
+
+
+
   // Add function to calculate leaves taken in current month
   const calculateLeavesTakenThisMonth = (requests) => {
     const currentDate = new Date();
@@ -345,15 +363,20 @@ console.log("leave quota" , leaveQuota);
     const currentYear = currentDate.getFullYear();
 
     return requests.reduce((total, request) => {
+
+      console.log("total value" , total);
       const requestDate = new Date(request.startDate);
+   
       if (requestDate.getMonth() === currentMonth && 
           requestDate.getFullYear() === currentYear && 
-          request.status === 'Approved') {
+          (request.status === 'Approved' || request.status === 'Pending')) {
         // Calculate number of days between start and end date
         const start = new Date(request.startDate);
         const end = new Date(request.endDate);
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-        return total + days;
+   
+
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) ;
+        return total + days ;
       }
       return total;
     }, 0);
@@ -397,6 +420,14 @@ console.log("leave quota" , leaveQuota);
   const handleApplyLeaveSubmit = async(e) => {
     e.preventDefault();
 
+    // Check if admin tracking method is enabled
+    if (!adminTrackingMethod) {
+      sonnerToast.error("Leave System Not Configured", {
+        description: "Please contact your administrator to configure the leave system."
+      });
+      return;
+    }
+
     // Calculate number of days requested
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -429,10 +460,26 @@ console.log("leave quota" , leaveQuota);
       return;
     }
 
-    // Check if employee has exceeded monthly quota
-    if (leavesTakenThisMonth + daysRequested > totalAvailableLeaves) {
+    // Check monthly leave count based on admin tracking method
+    if (adminTrackingMethod === 'monthly' && leavesTakenThisMonth >= 1) {
+      sonnerToast.error("Monthly Leave Limit Reached", {
+        description: "You have already taken your monthly leave. Please contact your manager for additional leaves."
+      });
+      return;
+    }
+
+    // Check if the requested days exceed the monthly quota
+    if (daysRequested > leaveQuota) {
       sonnerToast.error("Leave Quota Exceeded", {
-        description: `You have already taken ${leavesTakenThisMonth} days of leave this month. Your available leaves are ${totalAvailableLeaves} days (${leaveQuota} monthly + ${carriedForwardLeaves} carried forward).`
+        description: `You can only take ${leaveQuota} days of leave per month.`
+      });
+      return;
+    }
+
+    // Check if the requested days exceed the carry forward limit
+    if (carryForward && daysRequested > maximumDaysCarryForward) {
+      sonnerToast.error("Carry Forward Limit Exceeded", {
+        description: `You can only carry forward up to ${maximumDaysCarryForward} days.`
       });
       return;
     }
@@ -493,7 +540,8 @@ console.log("leave quota" , leaveQuota);
         appliedOn: format(new Date(), "yyyy-MM-dd"),
         employeeuid: employeeData.uid,
         adminuid: employeeData.adminuid,
-        daysRequested: daysRequested
+        daysRequested: daysRequested,
+        monthlyLeaveCount: leavesTakenThisMonth 
       };
       
       Logger.debug('Creating leave request document', newRequest);
@@ -506,12 +554,7 @@ console.log("leave quota" , leaveQuota);
       const requestWithId = { ...newRequest, id: newLeaveRequestRef.id };
       setLeaveRequests(prev => [requestWithId, ...prev]);
       
-      Logger.info("Leave request submitted successfully", {
-        requestId: newLeaveRequestRef.id,
-        leaveType,
-        dateRange: `${newRequest.startDate} to ${newRequest.endDate}`,
-        daysRequested: daysRequested
-      });
+     
       
       sonnerToast.success("Leave Applied Successfully!", { 
         description: `Your request for ${daysRequested} days is pending approval.` 
@@ -658,7 +701,7 @@ console.log("leave quota" , leaveQuota);
           <DialogHeader>
             <DialogTitle>Apply for Leave</DialogTitle>
             <DialogDescription>Fill in the details for your leave request.</DialogDescription>
-            {leavesTakenThisMonth > 0 && (
+            {leavesTakenThisMonth >= 1 && (
               <p className="text-sm text-red-500">You have already taken {leavesTakenThisMonth} days of leave this month.</p>
             )}
             {carryForward && carriedForwardLeaves > 0 && (
@@ -767,7 +810,10 @@ console.log("leave quota" , leaveQuota);
               />
             </div>
             <DialogFooter className="sm:justify-start pt-2">
-              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+
+              <Button type="submit" disabled={isLoading} 
+              
+              className={`w-full sm:w-auto${notClicked ? ` cursor-not-allowed`: ``}`}>
                 {isLoading ? <PageLoader className="mr-2 h-4 w-4 animate-spin" /> : "Submit Request"}
               </Button>
               <DialogClose asChild>
@@ -779,11 +825,72 @@ console.log("leave quota" , leaveQuota);
                 >
                   Cancel
                 </Button>
+
+
+                
               </DialogClose>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* <Card>
+        <CardHeader>
+          <CardTitle>Leave Quota Information</CardTitle>
+          <CardDescription>
+            Your leave allocation and usage details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Tracking Method</h3>
+                <p className="text-sm text-gray-500">How your leaves are tracked</p>
+              </div>
+              <div className="text-lg font-semibold text-blue-600 capitalize">
+                {adminTrackingMethod || 'Not Configured'}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Monthly Leave Quota</h3>
+                <p className="text-sm text-gray-500">Total leaves allowed per month</p>
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{leaveQuota}</div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Leaves Taken This Month</h3>
+                <p className="text-sm text-gray-500">Your current month's leave usage</p>
+              </div>
+              <div className="text-2xl font-bold text-red-600">{leavesTakenThisMonth}</div>
+            </div>
+
+            {carryForward && (
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h3 className="font-medium">Carried Forward Leaves</h3>
+                  <p className="text-sm text-gray-500">Unused leaves from previous month</p>
+                </div>
+                <div className="text-2xl font-bold text-green-600">{carriedForwardLeaves}</div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <h3 className="font-medium">Available Leaves</h3>
+                <p className="text-sm text-gray-500">Total leaves you can take</p>
+              </div>
+              <div className="text-2xl font-bold text-indigo-600">
+                {leaveQuota - leavesTakenThisMonth + (carryForward ? carriedForwardLeaves : 0)}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card> */}
 
       <Card>
         <CardHeader>

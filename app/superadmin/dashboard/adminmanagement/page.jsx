@@ -44,7 +44,7 @@ const initialAdmins = [
   { id: "admin5", name: "Edward Scissorhands", email: "edward@example.com", role: "Support Admin", status: "inactive", lastLogin: "2024-04-10" },
 ];
 
-export default function AdminManagementPage() {
+export default  function AdminManagementPage() {
   const [admins, setAdmins] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -63,10 +63,11 @@ export default function AdminManagementPage() {
 
 
   // Filtered Admins
+
   const filteredAdmins = admins.filter(admin =>
-    admin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    admin.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    admin.role.toLowerCase().includes(searchTerm.toLowerCase())
+    (admin.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (admin.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (admin.role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
 
@@ -104,7 +105,7 @@ useEffect(() => {
         const requestsRef = collection(db, 'request');
         // Assuming superadmin sees all admin requests. If it needs to be filtered by who created it,
         // you would add a where clause like: where('createdBy', '==', user.uid)
-        const q = query(requestsRef, where('role', '==', 'admin'));
+        const q = query(requestsRef, where('role', '==', 'admin') , where('isNew', '==', true));
         const querySnapshot = await getDocs(q);
         const requestsList = querySnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
