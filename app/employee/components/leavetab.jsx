@@ -21,7 +21,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Loader2 as PageLoader } from "lucide-react";
+import { Loader2 as PageLoader, X } from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -82,26 +82,15 @@ class Logger {
       url: window.location.href,
     };
 
-    // Console logging with styling
-    const styles = {
-      ERROR: "color: #ff4444; font-weight: bold;",
-      WARN: "color: #ffaa00; font-weight: bold;",
-      INFO: "color: #4444ff;",
-      DEBUG: "color: #888888;",
-    };
-
-    // Store in sessionStorage for debugging
     try {
       const logs = JSON.parse(sessionStorage.getItem("app_logs") || "[]");
       logs.push(logEntry);
-      // Keep only last 100 logs
       if (logs.length > 100) logs.shift();
       sessionStorage.setItem("app_logs", JSON.stringify(logs));
     } catch (e) {
       console.warn("Failed to store log in sessionStorage:", e);
     }
 
-    // Send critical errors to external service (placeholder)
     if (level === Logger.LOG_LEVELS.ERROR) {
       Logger.reportError(logEntry);
     }
@@ -126,8 +115,6 @@ class Logger {
   }
 
   static reportError(logEntry) {
-    // Placeholder for external error reporting service
-    // In production, you would send this to services like Sentry, LogRocket, etc.
     console.log("🚨 Critical error reported:", logEntry);
   }
 
@@ -190,13 +177,9 @@ export default function LeaveTab({ user }) {
   const [endTime, setEndTime] = useState(null);
   const [notClicked, setNotClicked] = useState(false);
   const [adminTrackingMethod, setAdminTrackingMethod] = useState(null);
-
   const [partialLeave, setPartialLeave] = useState(false);
   const [officeStartTime, setOfficeStartTime] = useState(null);
   const [officeEndTime, setOfficeEndTime] = useState(null);
-
-  console.log("start time", startTime);
-  console.log("end time", endTime);
 
   // Check for mobile view
   useEffect(() => {
@@ -249,7 +232,6 @@ export default function LeaveTab({ user }) {
         const employeeData = querySnapshot.docs[0].data();
         setEmployeeData(employeeData);
 
-        // Fetch admin's tracking method from users collection
         if (employeeData.adminuid) {
           const adminQuery = query(
             collection(db, "users"),
@@ -267,13 +249,8 @@ export default function LeaveTab({ user }) {
           }
         }
 
-        // Fetch leave requests
         await fetchLeaveRequests(employeeData.uid);
-
-        // Fetch leave quota
         await fetchLeaveQuota(employeeData.adminuid);
-
-        // Fetch office start time
         await fetchOfficeStartTime(employeeData.adminuid);
 
         Logger.info("Employee data fetched successfully", {
@@ -325,16 +302,10 @@ export default function LeaveTab({ user }) {
           });
         });
 
-        // Sort by applied date (newest first)
         requests.sort((a, b) => new Date(b.appliedOn) - new Date(a.appliedOn));
-
         setLeaveRequests(requests);
 
-        console.log("requests", requests);
-        // Calculate leaves taken this month
         setLeavesTakenThisMonth(calculateLeavesTakenThisMonth(requests));
-
-        // Calculate carried forward leaves
         setCarriedForwardLeaves(calculateCarriedForwardLeaves(requests));
 
         Logger.info("Leave requests fetched successfully", {
@@ -361,7 +332,6 @@ export default function LeaveTab({ user }) {
     };
 
     const fetchLeaveQuota = async (adminuid) => {
-      console.log("adminuid", adminuid);
       try {
         const leaveQuotaRef = query(
           collection(db, "Daily_attendance"),
@@ -375,8 +345,6 @@ export default function LeaveTab({ user }) {
         }
 
         const leaveQuotaData = querySnapshot.docs[0].data();
-        console.log("Leave quota data:", leaveQuotaData);
-
         if (leaveQuotaData) {
           setLeaveQuota(leaveQuotaData.leaveQuota || 0);
           setCarryForward(leaveQuotaData.carryForward || false);
@@ -414,7 +382,6 @@ export default function LeaveTab({ user }) {
     };
   }, [user]);
 
-  // Add useEffect to check for same date
   useEffect(() => {
     if (startDate && endDate) {
       const isSameDay = startDate.toDateString() === endDate.toDateString();
@@ -431,46 +398,36 @@ export default function LeaveTab({ user }) {
     }
   }, [startDate, endDate]);
 
-  console.log("leave quota", leaveQuota);
-
-  // Add function to calculate leaves taken in current month
   const calculateLeavesTakenThisMonth = (requests) => {
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
 
     return requests.reduce((total, request) => {
-      console.log("total value", total);
-      const requestDate = new Date(request.startDate);
+      if (request.status !== "Approved") return total;
+      
+      const requestMonth = new Date(request.startDate).getMonth();
+      const requestYear = new Date(request.startDate).getFullYear();
 
-      if (
-        requestDate.getMonth() === currentMonth &&
-        requestDate.getFullYear() === currentYear &&
-        (request.status === "Approved" || request.status === "Pending")
-      ) {
-        // Calculate number of days between start and end date
+      if (requestMonth === currentMonth && requestYear === currentYear) {
         const start = new Date(request.startDate);
         const end = new Date(request.endDate);
-
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
         return total + days;
       }
       return total;
     }, 0);
   };
 
-  // Add function to calculate carried forward leaves
   const calculateCarriedForwardLeaves = (requests) => {
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
 
-    // Get last month's date
     const lastMonth = new Date(currentYear, currentMonth - 1, 1);
     const lastMonthYear = lastMonth.getFullYear();
     const lastMonthMonth = lastMonth.getMonth();
 
-    // Calculate unused leaves from last month
     const lastMonthLeaves = requests.filter((request) => {
       const requestDate = new Date(request.startDate);
       return (
@@ -487,99 +444,50 @@ export default function LeaveTab({ user }) {
       return total + days;
     }, 0);
 
-    // Calculate unused leaves
     const unusedLeaves = Math.max(0, leaveQuota - lastMonthDaysTaken);
-
-    // Apply maximum carry forward limit
     return Math.min(unusedLeaves, maximumDaysCarryForward || 0);
   };
 
-  console.log("leavesTakenThisMonth", leavesTakenThisMonth);
+  const validateTimeInputs = () => {
+    if (!partialLeave) return true;
+
+    const currentDate = new Date();
+    const currentTime = format(currentDate, 'HH:mm');
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const currentDateStr = format(currentDate, 'yyyy-MM-dd');
+
+    if (startDateStr === currentDateStr && startTime < currentTime) {
+      sonnerToast.error("Invalid Start Time", {
+        description: "Start time cannot be before current time for today's date.",
+      });
+      return false;
+    }
+
+    if (startDate.toDateString() === endDate.toDateString() && startTime >= endTime) {
+      sonnerToast.error("Invalid Time Range", {
+        description: "End time must be after start time for same day leave.",
+      });
+      return false;
+    }
+
+    return true;
+  };
 
   const handleApplyLeaveSubmit = async (e) => {
     e.preventDefault();
 
-    // Check if admin tracking method is enabled
     if (!adminTrackingMethod) {
       sonnerToast.error("Leave System Not Configured", {
-        description:
-          "Please contact your administrator to configure the leave system.",
+        description: "Please contact your administrator to configure the leave system.",
       });
       return;
     }
 
-    // Calculate number of days requested
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-
-    const wantsDate = leaveQuota / 12 - daysRequested;
-
-    if (wantsDate <= 0) {
-      sonnerToast.error("Leave Quota Exceeded", {
-        description: `You can only take ${wantsDate} days of leave per month.`,
-      });
+    if (partialLeave && !validateTimeInputs()) {
       return;
     }
 
-    // Check if employee has any available leaves
-    const totalAvailableLeaves =
-      leaveQuota + (carryForward ? carriedForwardLeaves : 0);
-
-    if (totalAvailableLeaves <= 0) {
-      sonnerToast.error("No Leaves Available", {
-        description: "You don't have any leaves available for this month.",
-      });
-      return;
-    }
-
-    // Check if the requested dates are in the current month
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
-    const startMonth = start.getMonth();
-    const startYear = start.getFullYear();
-    const endMonth = end.getMonth();
-    const endYear = end.getFullYear();
-
-    if (
-      startMonth !== currentMonth ||
-      startYear !== currentYear ||
-      endMonth !== currentMonth ||
-      endYear !== currentYear
-    ) {
-      sonnerToast.error("Invalid Date Range", {
-        description: "Leave can only be applied for the current month.",
-      });
-      return;
-    }
-
-    // Check monthly leave count based on admin tracking method
-    if (adminTrackingMethod === "monthly" && leavesTakenThisMonth >= 1) {
-      sonnerToast.error("Monthly Leave Limit Reached", {
-        description:
-          "You have already taken your monthly leave. Please contact your manager for additional leaves.",
-      });
-      return;
-    }
-
-    // Check if the requested days exceed the monthly quota
-    if (daysRequested > leaveQuota) {
-      sonnerToast.error("Leave Quota Exceeded", {
-        description: `You can only take ${leaveQuota} days of leave per month.`,
-      });
-      return;
-    }
-
-    // Check if the requested days exceed the carry forward limit
-    if (carryForward && daysRequested > maximumDaysCarryForward) {
-      sonnerToast.error("Carry Forward Limit Exceeded", {
-        description: `You can only carry forward up to ${maximumDaysCarryForward} days.`,
-      });
-      return;
-    }
-
-    // Rest of your existing validation
+    // Required field validation
     if (!startDate || !endDate || !reason.trim() || !leaveType) {
       Logger.warn("Leave application validation failed - missing fields", {
         hasStartDate: !!startDate,
@@ -593,33 +501,58 @@ export default function LeaveTab({ user }) {
       return;
     }
 
-    const currentDateString = new Date().toLocaleDateString().split("T")[0];
-    const startDateString = startDate.toLocaleDateString().split("T")[0];
+    // Date validation
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
 
-    if (startDateString < currentDateString) {
-      sonnerToast.error("Invalid Dates", {
-        description: "Start date cannot be before current date.",
+    // Check if start date is not before current date
+    if (start < currentDate) {
+      sonnerToast.error("Invalid Start Date", {
+        description: "Start date cannot be before today.",
       });
       return;
     }
 
-    const currentTime = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    if (startTime < currentTime || endTime < currentTime) {
-      sonnerToast.error("Invalid Time", {
-        description: "Start time cannot be before current time.",
+    // Check if end date is not before start date
+    if (end < start) {
+      sonnerToast.error("Invalid Date Range", {
+        description: "End date cannot be before start date.",
       });
       return;
     }
 
-    if (startTime > endTime) {
-      sonnerToast.error("Invalid Time", {
-        description: "Start time cannot be after end time.",
+    // Calculate days requested
+    const daysRequested = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Calculate monthly quota and available leaves
+    const monthlyQuota = leaveQuota / 12;
+    const totalAvailableLeaves = monthlyQuota + (carryForward ? carriedForwardLeaves : 0);
+
+    // Validate leave quota
+    if (daysRequested > totalAvailableLeaves) {
+      sonnerToast.error("Leave Quota Exceeded", {
+        description: `You have ${totalAvailableLeaves.toFixed(1)} days available this month.`,
       });
       return;
+    }
+
+    // Validate partial leave hours if applicable
+    let adjustedDaysRequested = daysRequested;
+    if (partialLeave && start.toDateString() === end.toDateString()) {
+      const startTimeDate = new Date(`2000-01-01T${startTime}`);
+      const endTimeDate = new Date(`2000-01-01T${endTime}`);
+      const hoursRequested = (endTimeDate - startTimeDate) / (1000 * 60 * 60);
+      adjustedDaysRequested = hoursRequested / 8; // Assuming 8-hour workday
+      if (adjustedDaysRequested > totalAvailableLeaves) {
+        sonnerToast.error("Leave Quota Exceeded", {
+          description: `Requested hours exceed available leave quota.`,
+        });
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -635,10 +568,11 @@ export default function LeaveTab({ user }) {
         startTime,
         endTime,
         status: "Pending",
+        partialLeave,
         appliedOn: format(new Date(), "yyyy-MM-dd"),
         employeeuid: employeeData.uid,
         adminuid: employeeData.adminuid,
-        daysRequested: daysRequested,
+        daysRequested: adjustedDaysRequested,
         monthlyLeaveCount: leavesTakenThisMonth,
       };
 
@@ -648,15 +582,12 @@ export default function LeaveTab({ user }) {
       const newLeaveRequestRef = doc(collection(db, "leaves"));
       await setDoc(newLeaveRequestRef, newLeaveRequest);
 
-      // Add the new request to local state
-      const requestWithId = { ...newRequest, id: newLeaveRequestRef.id };
-      setLeaveRequests((prev) => [requestWithId, ...prev]);
+      setLeaveRequests((prev) => [{ ...newRequest, id: newLeaveRequestRef.id }, ...prev]);
 
       sonnerToast.success("Leave Applied Successfully!", {
-        description: `Your request for ${daysRequested} days is pending approval.`,
+        description: `Your request for ${adjustedDaysRequested.toFixed(1)} days is pending approval.`,
       });
 
-      // Reset form
       setStartDate(undefined);
       setEndDate(undefined);
       setReason("");
@@ -814,7 +745,6 @@ export default function LeaveTab({ user }) {
         </Button>
       </div>
 
-      {/* Apply Leave Dialog */}
       <Dialog
         open={isApplyLeaveDialogOpen}
         onOpenChange={(open) => {
@@ -1013,64 +943,6 @@ export default function LeaveTab({ user }) {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* <Card>
-        <CardHeader>
-          <CardTitle>Leave Quota Information</CardTitle>
-          <CardDescription>
-            Your leave allocation and usage details.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium">Tracking Method</h3>
-                <p className="text-sm text-gray-500">How your leaves are tracked</p>
-              </div>
-              <div className="text-lg font-semibold text-blue-600 capitalize">
-                {adminTrackingMethod || 'Not Configured'}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium">Monthly Leave Quota</h3>
-                <p className="text-sm text-gray-500">Total leaves allowed per month</p>
-              </div>
-              <div className="text-2xl font-bold text-blue-600">{leaveQuota}</div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium">Leaves Taken This Month</h3>
-                <p className="text-sm text-gray-500">Your current month's leave usage</p>
-              </div>
-              <div className="text-2xl font-bold text-red-600">{leavesTakenThisMonth}</div>
-            </div>
-
-            {carryForward && (
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="font-medium">Carried Forward Leaves</h3>
-                  <p className="text-sm text-gray-500">Unused leaves from previous month</p>
-                </div>
-                <div className="text-2xl font-bold text-green-600">{carriedForwardLeaves}</div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium">Available Leaves</h3>
-                <p className="text-sm text-gray-500">Total leaves you can take</p>
-              </div>
-              <div className="text-2xl font-bold text-indigo-600">
-                {leaveQuota - leavesTakenThisMonth + (carryForward ? carriedForwardLeaves : 0)}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
 
       <Card>
         <CardHeader>
