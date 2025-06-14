@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"; // Already used above
-import { CheckCircle, XCircle, Hourglass, Filter } from "lucide-react"; // Icons for actions and status
+import { CheckCircle, XCircle, Hourglass, Filter, Calendar, Clock } from "lucide-react"; // Icons for actions and status
 import { format } from "date-fns"; // For date formatting
 import {
   Tooltip,
@@ -103,10 +103,19 @@ export default function LeaveManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all"); // 'all', 'pending', 'approved', 'rejected'
   // Using Sonner toast directly
 
-
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
+  useEffect(() => {
     const fetchLeaveRequests = async () => {
       try {
         const user = auth.currentUser;
@@ -248,6 +257,77 @@ const handleCarryForwardChange = () => {
     }
   };
 
+  const renderMobileCards = () => {
+    return (
+      <div className="space-y-4">
+        {filteredLeaveRequests.length > 0 ? (
+          filteredLeaveRequests.map((req, index) => (
+            <Card key={req.id} className="p-4">
+              <div className="space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium">{req.name}</h3>
+                    <p className="text-sm text-muted-foreground">ID: {index + 1}</p>
+                  </div>
+                  {getStatusBadge(req.status)}
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      {format(new Date(req.startDate), "MMM dd, yyyy")} -{" "}
+                      {format(new Date(req.endDate), "MMM dd, yyyy")}
+                    </span>
+                  </div>
+                  {req.partialLeave && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>{req.startTime} - {req.endTime}</span>
+                    </div>
+                  )}
+                  <div className="text-sm">
+                    <p className="font-medium">Reason:</p>
+                    <p className="text-muted-foreground">{req.reason}</p>
+                  </div>
+                </div>
+
+                {req.status === "Pending" ? (
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-green-50 text-green-600 hover:bg-green-100"
+                      onClick={() => handleUpdateRequestStatus(req.id, "Approved", req.name)}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 bg-red-50 text-red-600 hover:bg-red-100"
+                      onClick={() => handleUpdateRequestStatus(req.id, "Rejected", req.name)}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Reject
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">Processed</p>
+                )}
+              </div>
+            </Card>
+          ))
+        ) : (
+          <div className="text-center p-8 text-muted-foreground">
+            No leave requests found matching your filters.
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 mt-10 mx-10">
       <div>
@@ -279,94 +359,103 @@ const handleCarryForwardChange = () => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="hidden sm:table-cell w-[100px]">
-                    Request ID
-                  </TableHead>
-                  <TableHead className="w-[120px]">Employee</TableHead>
-                  <TableHead className="w-[150px]">Dates</TableHead>
-                  <TableHead className="hidden md:table-cell">Reason</TableHead>
-                  <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[120px] text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLeaveRequests.length > 0 ? (
-                  filteredLeaveRequests.map((req, index) => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-mono text-xs hidden sm:table-cell">
-                        {index + 1}
-                      </TableCell>
-                      <TableCell>
-                        <div
-                          className="font-medium truncate max-w-[120px]"
-                          title={req.name}
-                        >
-                          {req.name}
-                        </div>
-                        
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs sm:text-sm">
-                        {format(new Date(req.startDate), "MMM dd, yyyy")} -{" "}
-                        {format(new Date(req.endDate), "MMM dd, yyyy")}
-                      </TableCell>
-                      <TableCell
-                        className="hidden md:table-cell max-w-xs truncate"
-                        title={req.reason}
-                      >
-                        {req.reason}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(req.status)}</TableCell>
-                      <TableCell className="text-right">
-                        {req.status === "Pending" && (
-                          <div className="flex  xs:flex-row gap-1 justify-end w-full">
-
-                            {/* Approve Button */}
-                            <Tooltip>
-                              <TooltipTrigger onClick={()=>handleUpdateRequestStatus(req.id,"Approved" , req.name)}>
-                                
-                                  <CheckCircle className="mr-1 h-5 w-5  border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700" />
-                            
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-white text-black">
-                                <p>Approve</p>
-                              </TooltipContent>
-                            </Tooltip>
-
-                            {/* Reject Button */}
-                            <Tooltip>
-                              <TooltipTrigger onClick={()=>handleUpdateRequestStatus(req.id,"Rejected " , req.name)}>
-                                
-                                  <XCircle className="mr-1 h-5 w-5 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700" />
-                              
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-white text-black">
-                                <p>Reject</p>
-                              </TooltipContent>
-                            </Tooltip>
+            {isMobile ? (
+              renderMobileCards()
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="hidden sm:table-cell w-[100px]">
+                      Request ID
+                    </TableHead>
+                    <TableHead className="w-[120px]">Employee</TableHead>
+                    <TableHead className="w-[150px]">Dates</TableHead>
+                    <TableHead className="hidden md:table-cell">Reason</TableHead>
+                    <TableHead className="w-[100px]">Status</TableHead>
+                    <TableHead className="w-[120px] text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLeaveRequests.length > 0 ? (
+                    filteredLeaveRequests.map((req, index) => (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-mono text-xs hidden sm:table-cell">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <div
+                            className="font-medium truncate max-w-[120px]"
+                            title={req.name}
+                          >
+                            {req.name}
                           </div>
-                        )}
-                        {req.status !== "Pending" && (
-                          <span className="text-xs text-muted-foreground italic pe-2">
-                            Processed
-                          </span>
-                        )}
+                          
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs sm:text-sm">
+                          {format(new Date(req.startDate), "MMM dd, yyyy")} -{" "}
+                          {format(new Date(req.endDate), "MMM dd, yyyy")}
+                          {req.partialLeave && (
+                            <div className="text-xs text-muted-foreground italic pe-2">
+                           {req.startTime} - {req.endTime}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell
+                          className=" md:table-cell max-w-xs truncate"
+                          title={req.reason}
+                        >
+                          {req.reason}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(req.status)}</TableCell>
+                        <TableCell className="text-right">
+                          {req.status === "Pending" && (
+                            <div className="flex  xs:flex-row gap-1 justify-end w-full">
+
+                              {/* Approve Button */}
+                              <Tooltip>
+                                <TooltipTrigger onClick={()=>handleUpdateRequestStatus(req.id,"Approved" , req.name)}>
+                                  
+                                    <CheckCircle className="mr-1 h-5 w-5  border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700" />
+                              
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-white text-black">
+                                  <p>Approve</p>
+                                </TooltipContent>
+                              </Tooltip>
+
+                              {/* Reject Button */}
+                              <Tooltip>
+                                <TooltipTrigger onClick={()=>handleUpdateRequestStatus(req.id,"Rejected " , req.name)}>
+                                  
+                                    <XCircle className="mr-1 h-5 w-5 border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700" />
+                                
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-white text-black">
+                                  <p>Reject</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          )}
+                          {req.status !== "Pending" && (
+                            <span className="text-xs text-muted-foreground italic pe-2">
+                              Processed
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan="6" className="h-24 text-center">
+                        No leave requests found matching your filters.
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan="6" className="h-24 text-center">
-                      No leave requests found matching your filters.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </CardContent>
       </Card>
