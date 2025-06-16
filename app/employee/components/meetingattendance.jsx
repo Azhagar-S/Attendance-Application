@@ -17,64 +17,102 @@ import { parse , differenceInMinutes } from 'date-fns';
 
 // Address Geocoding Service
 const getAddressFromCoordinates = async (latitude, longitude) => {
+  const Maps_API_KEY = "AIzaSyCzXT9syu2xxdPCx5VLRWKmUvi4iuWZg4U"; // YOUR API KEY HERE
+
   try {
-    // Using OpenStreetMap Nominatim API (free, no API key required)
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-      {
-        headers: {
-          'User-Agent': 'MeetingAttendanceApp/1.0'
-        }
-      }
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${Maps_API_KEY}`
     );
-    
+
     if (!response.ok) {
-      throw new Error('Geocoding service unavailable');
+      throw new Error("Google Geocoding service unavailable.");
     }
-    
+
     const data = await response.json();
-    
-    if (data && data.address) {
-      const address = data.address;
-      return {
-        fullAddress: data.display_name,
-        area: address.neighbourhood || address.suburb || address.hamlet || address.village || address.town || '',
-        city: address.city || address.town || address.municipality || address.county || '',
-        state: address.state || address.region || '',
-        country: address.country || '',
-        postcode: address.postcode || '',
-        road: address.road || address.street || '',
-        houseNumber: address.house_number || '',
-        formatted: `${address.road || ''} ${address.house_number || ''}, ${address.neighbourhood || address.suburb || ''}, ${address.city || address.town || ''}, ${address.state || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, '')
+
+    if (data.status === "OK" && data.results && data.results.length > 0) {
+      const result = data.results[0]; // Get the most relevant result
+      const addressComponents = result.address_components;
+
+      // Helper to find a specific component type
+      const findComponent = (types) => {
+        const component = addressComponents.find((comp) =>
+          types.some((type) => comp.types.includes(type))
+        );
+        return component ? component.long_name : "";
       };
+
+      const fullAddress = result.formatted_address;
+      const postcode = findComponent(["postal_code"]);
+      const country = findComponent(["country"]);
+      const state = findComponent(["administrative_area_level_1"]); // e.g., "California"
+      const city = findComponent([
+        "locality",
+        "administrative_area_level_3",
+        "administrative_area_level_2",
+      ]); // e.g., "New York City", "County"
+      const area = findComponent(["sublocality", "sublocality_level_1"]); // e.g., "Brooklyn" or a neighborhood
+      const road = findComponent(["route"]); // Street name
+      const houseNumber = findComponent(["street_number"]);
+
+      // Construct a more structured formatted address for consistency, if needed
+      const formatted = [road, houseNumber]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const areaCityState = [area, city, state]
+        .filter(Boolean)
+        .join(", ")
+        .trim();
+      const finalFormatted = [formatted, areaCityState, postcode, country]
+        .filter(Boolean)
+        .join(", ")
+        .trim()
+        .replace(/,\s*,/g, ", ") // Remove double commas
+        .replace(/^\s*,/, ""); // Remove leading comma if any
+
+      return {
+        fullAddress: fullAddress,
+        area: area,
+        city: city,
+        state: state,
+        country: country,
+        postcode: postcode,
+        road: road,
+        houseNumber: houseNumber,
+        formatted: finalFormatted, // A more robust formatted string
+      };
+    } else if (data.status === "ZERO_RESULTS") {
+      // No results found for the given coordinates
+      console.warn("No address found for these coordinates using Google API.");
+      return {
+        fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        area: "No Area Found",
+        city: "No City Found",
+        state: "No State Found",
+        country: "No Country Found",
+        postcode: "",
+        road: "",
+        houseNumber: "",
+        formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+      };
+    } else {
+      // Other API errors (e.g., OVER_QUERY_LIMIT, INVALID_REQUEST, etc.)
+      throw new Error(`Google Geocoding API Error: ${data.status} - ${data.error_message || "Unknown error"}`);
     }
-    
-    return {
-      fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      area: '',
-      city: '',
-      state: '',
-      country: '',
-      postcode: '',
-      road: '',
-      houseNumber: '',
-      formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-    };
   } catch (error) {
-    console.error('Error getting address:', error);
-    
-    // Fallback: Try Google Maps reverse geocoding (if you have API key)
-    // You can replace this with your preferred geocoding service
+    console.error("Error getting address from Google Maps API:", error);
+    // Fallback to coordinates if API call fails
     return {
       fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-      area: 'Unknown Area',
-      city: 'Unknown City',
-      state: 'Unknown State',
-      country: 'Unknown Country',
-      postcode: '',
-      road: '',
-      houseNumber: '',
-      formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+      area: "Service Error",
+      city: "Service Error",
+      state: "Service Error",
+      country: "Service Error",
+      postcode: "",
+      road: "",
+      houseNumber: "",
+      formatted: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
     };
   }
 };

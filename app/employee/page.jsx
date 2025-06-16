@@ -447,17 +447,19 @@ export default function MemberPage() {
   //handle dates
 
   const handleDateChange = (obj) => {
+    const formattedDate = obj.date.toISOString().split('T')[0];
+    
     if(obj.duration === "start"){
       setStartDate(obj.date);
       setFormData(prev => ({
         ...prev,
-        startDate: obj.date
+        startDate: formattedDate
       }));
     } else {
       setEndDate(obj.date);
       setFormData(prev => ({
         ...prev,
-        endDate: obj.date
+        endDate: formattedDate
       }));
     }
   };
