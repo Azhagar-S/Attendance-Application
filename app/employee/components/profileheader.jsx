@@ -155,10 +155,10 @@ export function DailyAttendance({
         if (snapshot.empty) return;
 
         const adminData = snapshot.docs[0].data();
-        console.log("adminData", adminData);
+    
 
         const officeLocation = adminData.officeLocation;
-        console.log("officeLocation", officeLocation);
+      
         if (adminData.officeLocation) {
           setLocationSettings({
             latitude: officeLocation.latitude,
@@ -181,6 +181,19 @@ export function DailyAttendance({
 
         if (!dailySettingsSnapshot.empty) {
           const settings = dailySettingsSnapshot.docs[0].data();
+
+          const currentDate = new Date();
+          const currentDay = currentDate.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+          const workingDay = settings.workingDays;
+
+          console.log("workingDay", workingDay);
+
+            const isTodayWorkingDay = workingDay[currentDay];
+            console.log("isTodayWorkingDay", isTodayWorkingDay);
+
+            if(!isTodayWorkingDay){
+              setIsYetSet(true);
+            }
 
           setAttendanceSettings({
             workingHours: settings.workingHours || "09:00",

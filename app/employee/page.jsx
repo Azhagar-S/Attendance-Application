@@ -446,11 +446,20 @@ export default function MemberPage() {
 
   //handle dates
 
-  const handleDateChange = (date) => {
-    setStartDate(date);
-    setEndDate(date);
-
-    setFormData({...formData, startDate: startDate, endDate: endDate});
+  const handleDateChange = (obj) => {
+    if(obj.duration === "start"){
+      setStartDate(obj.date);
+      setFormData(prev => ({
+        ...prev,
+        startDate: obj.date
+      }));
+    } else {
+      setEndDate(obj.date);
+      setFormData(prev => ({
+        ...prev,
+        endDate: obj.date
+      }));
+    }
   };
 
   const handleSubmit = async () => {
@@ -657,7 +666,7 @@ export default function MemberPage() {
                             <DatePicker
                               date={startDate}
                               value={startDate}
-                              setDate={(date) => handleDateChange(date)}
+                              setDate={(date) => handleDateChange({duration:"start" , date})}
                               className="w-full"
                             />
                           </div>
@@ -669,7 +678,7 @@ export default function MemberPage() {
                             <DatePicker
                               date={endDate}
                               value={endDate}
-                              setDate={(date) => handleDateChange(date)}
+                              setDate={(date) => handleDateChange({duration:"end" , date})}
                               className="w-full"
                             />
                           </div>
@@ -1033,7 +1042,7 @@ export default function MemberPage() {
 
       {/* Tabs for History */}
       <Tabs defaultValue="attendanceHistory" className="w-full">
-        <TabsList className={`grid w-full grid-cols-1 sm:grid-cols-2  gap-2 ${!isWFhEnabled ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+        <TabsList className={`grid w-full grid-cols-3 sm:grid-cols-3  gap-2 ${!isWFhEnabled ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <TabsTrigger value="attendanceHistory" className="flex items-center justify-center">
             <CalendarDays className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Attendance History</span>
