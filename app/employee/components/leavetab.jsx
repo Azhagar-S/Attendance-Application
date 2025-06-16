@@ -156,6 +156,10 @@ class PerformanceMonitor {
 }
 
 export default function LeaveTab({ user }) {
+
+  const [monthlyQuota, setMonthlyQuota] = useState(0);
+  const [totalAvailableLeaves, setTotalAvailableLeaves] = useState(0);
+
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [isApplyLeaveDialogOpen, setIsApplyLeaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -530,6 +534,8 @@ export default function LeaveTab({ user }) {
 
     // Calculate monthly quota and available leaves
     const monthlyQuota = leaveQuota / 12;
+
+    setMonthlyQuota(monthlyQuota);
     const totalAvailableLeaves = monthlyQuota + (carryForward ? carriedForwardLeaves : 0);
 
     // Validate leave quota
@@ -628,6 +634,9 @@ export default function LeaveTab({ user }) {
       </Badge>
     );
   };
+
+
+  
 
   const renderMobileCards = () => {
     Logger.debug("Rendering mobile cards view", {
@@ -758,7 +767,7 @@ export default function LeaveTab({ user }) {
             <DialogDescription>
               Fill in the details for your leave request.
             </DialogDescription>
-            {leavesTakenThisMonth >= 1 && (
+            {leavesTakenThisMonth >= monthlyQuota && (
               <p className="text-sm text-red-500">
                 You have already taken {leavesTakenThisMonth} days of leave this
                 month.
@@ -918,7 +927,7 @@ export default function LeaveTab({ user }) {
             <DialogFooter className="sm:justify-start pt-2">
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || leavesTakenThisMonth >= monthlyQuota}
                 className={`w-full sm:w-auto${
                   notClicked ? ` cursor-not-allowed` : ``
                 }`}
