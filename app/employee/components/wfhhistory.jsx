@@ -27,8 +27,8 @@ const WfhHistory = () => {
 
             const fetchedRequests = wfhRequests.docs.map(doc => {
                 const data = doc.data();
-                const startDate = data.startDate.toDate();
-                const endDate = data.endDate.toDate();
+                const startDate = data.startDate;
+                const endDate = data.endDate;
                 const createdAt = data.createdAt.toDate();
 
                 console.log(startDate,"startDate");

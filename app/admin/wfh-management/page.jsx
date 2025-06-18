@@ -23,6 +23,7 @@ import { collection, query, getDocs, where, doc, updateDoc } from 'firebase/fire
 import { auth } from '@/app/firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import { constructFrom } from 'date-fns';
 
 
 
@@ -54,11 +55,15 @@ const AdminWFHRequests = () => {
             
             const fetchedRequests = requestsSnapshot.docs.map(doc => {
               const data = doc.data();
+              console.log(data,"data");
+
+              const sDate = data.startDate;
+              console.log(sDate,"sDate");
               return {
                 id: doc.id,
                 ...data,
-                startDate: data.startDate.toDate(),
-                endDate: data.endDate.toDate(),
+                startDate: data.startDate,
+                endDate: data.endDate,
                 submittedAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()
               }
             });

@@ -87,7 +87,6 @@ export function DailyAttendance({
   currentLocation,
   user,
 }) {
-
   const [isYetSet, setIsYetSet] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -146,8 +145,6 @@ export function DailyAttendance({
 
         const userData = userSnapshot.docs[0].data();
         const adminUid = userData.adminuid;
-       
-
 
         const q = query(collection(db, "users"), where("uid", "==", adminUid));
         const snapshot = await getDocs(q);
@@ -155,10 +152,9 @@ export function DailyAttendance({
         if (snapshot.empty) return;
 
         const adminData = snapshot.docs[0].data();
-    
 
         const officeLocation = adminData.officeLocation;
-      
+
         if (adminData.officeLocation) {
           setLocationSettings({
             latitude: officeLocation.latitude,
@@ -175,7 +171,7 @@ export function DailyAttendance({
         );
         const dailySettingsSnapshot = await getDocs(dailySettingsQuery);
 
-        if(dailySettingsSnapshot.empty){
+        if (dailySettingsSnapshot.empty) {
           setIsYetSet(true);
         }
 
@@ -183,17 +179,19 @@ export function DailyAttendance({
           const settings = dailySettingsSnapshot.docs[0].data();
 
           const currentDate = new Date();
-          const currentDay = currentDate.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+          const currentDay = currentDate
+            .toLocaleDateString("en-US", { weekday: "short" })
+            .toLowerCase();
           const workingDay = settings.workingDays;
 
           console.log("workingDay", workingDay);
 
-            const isTodayWorkingDay = workingDay[currentDay];
-            console.log("isTodayWorkingDay", isTodayWorkingDay);
+          const isTodayWorkingDay = workingDay[currentDay];
+          console.log("isTodayWorkingDay", isTodayWorkingDay);
 
-            if(!isTodayWorkingDay){
-              setIsYetSet(true);
-            }
+          if (!isTodayWorkingDay) {
+            setIsYetSet(true);
+          }
 
           setAttendanceSettings({
             workingHours: settings.workingHours || "09:00",
@@ -213,9 +211,6 @@ export function DailyAttendance({
 
     fetchAttendanceSettings();
   }, [user]);
-
-
-
 
   // Fetch attendance status on component mount
   useEffect(() => {
@@ -255,6 +250,7 @@ export function DailyAttendance({
           setAttendanceId(attendanceSnapshot.docs[0].id);
         }
         fetchCheckAndStatus(employeeId);
+        checkWfhRequests(employeeId);
       } catch (error) {
         console.error("Error fetching attendance:", error);
       } finally {
@@ -301,33 +297,58 @@ export function DailyAttendance({
           }
         }
 
-        workFromHome();
-
+        // Check WFH requests after fetching attendance
+       
+      
         console.log("checkAndStatus", checkAndStatus);
       } catch (error) {
         console.error("Error fetching check and status:", error);
       }
     };
 
+    const checkWfhRequests = async (employeeId) => {
 
-    const workFromHome = async () => {
-      const user = auth.currentUser;
-      const phone = user.phoneNumber.slice(3);
-      const userQuery = query(collection(db, "users"), where("phone", "==", phone));
-      const userSnapshot = await getDocs(userQuery);
-      const userData = userSnapshot.docs[0].data();
-      const adminUid = userData.adminuid;
-
-      const wfhRequests = await getDocs(collection(db, "wfh_requests"), where("adminuid", "==", adminUid));
-      const wfhRequestsData = wfhRequests.docs.map((doc) => doc.data());
-      console.log("wfhRequestsData", wfhRequestsData);
-      setWfhRequests(wfhRequestsData);
-      wfhRequestsData[0].status === "approved" ? setIsWfhApproved(true) : setIsWfhApproved(false);
-    }
+      
+      try {
+        console.log("Checking WFH requests for employee:", employeeId);
+        
+        // Query WFH requests for this employee with approved status
+        const wfhQuery = query(
+          collection(db, "wfh_requests"),
+          where("employeeId", "==", employeeId),
+          where("status", "==", "approved")
+        );
+        
+        const wfhSnapshot = await getDocs(wfhQuery);
+        console.log("WFH requests found:", wfhSnapshot.docs.length);
+        
+        if (!wfhSnapshot.empty) {
+          // Get all approved WFH requests
+          const wfhRequestsData = wfhSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+        
+          console.log("wfhRequestsData new", wfhRequestsData);
+          if(wfhRequestsData.length > 0){
+            const approved = wfhRequestsData[0].status === "approved";
+            setIsWfhApproved(true);
+          }else{
+            setIsWfhApproved(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking WFH requests:", error);
+        setIsWfhApproved(false);
+        setWfhRequests([]);
+      }
+    };
 
     fetchTodayAttendance();
+
   }, [user]);
 
+  console.log("isWfhApproved", isWfhApproved);
 
   // detect if user is in online or not
   // const isOnline = async () => {
@@ -338,28 +359,27 @@ export function DailyAttendance({
   //   const userData = userSnapshot.docs[0].data();
   //   const adminUid = userData.adminuid;
 
-   
   // }
 
   // Address Geocoding Service
   const getAddressFromCoordinates = async (latitude, longitude) => {
     const Maps_API_KEY = "AIzaSyCzXT9syu2xxdPCx5VLRWKmUvi4iuWZg4U"; // YOUR API KEY HERE
-  
+
     try {
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${Maps_API_KEY}`
       );
-  
+
       if (!response.ok) {
         throw new Error("Google Geocoding service unavailable.");
       }
-  
+
       const data = await response.json();
-  
+
       if (data.status === "OK" && data.results && data.results.length > 0) {
         const result = data.results[0]; // Get the most relevant result
         const addressComponents = result.address_components;
-  
+
         // Helper to find a specific component type
         const findComponent = (types) => {
           const component = addressComponents.find((comp) =>
@@ -367,7 +387,7 @@ export function DailyAttendance({
           );
           return component ? component.long_name : "";
         };
-  
+
         const fullAddress = result.formatted_address;
         const postcode = findComponent(["postal_code"]);
         const country = findComponent(["country"]);
@@ -380,12 +400,9 @@ export function DailyAttendance({
         const area = findComponent(["sublocality", "sublocality_level_1"]); // e.g., "Brooklyn" or a neighborhood
         const road = findComponent(["route"]); // Street name
         const houseNumber = findComponent(["street_number"]);
-  
+
         // Construct a more structured formatted address for consistency, if needed
-        const formatted = [road, houseNumber]
-          .filter(Boolean)
-          .join(" ")
-          .trim();
+        const formatted = [road, houseNumber].filter(Boolean).join(" ").trim();
         const areaCityState = [area, city, state]
           .filter(Boolean)
           .join(", ")
@@ -396,7 +413,7 @@ export function DailyAttendance({
           .trim()
           .replace(/,\s*,/g, ", ") // Remove double commas
           .replace(/^\s*,/, ""); // Remove leading comma if any
-  
+
         return {
           fullAddress: fullAddress,
           area: area,
@@ -410,7 +427,9 @@ export function DailyAttendance({
         };
       } else if (data.status === "ZERO_RESULTS") {
         // No results found for the given coordinates
-        console.warn("No address found for these coordinates using Google API.");
+        console.warn(
+          "No address found for these coordinates using Google API."
+        );
         return {
           fullAddress: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
           area: "No Area Found",
@@ -424,7 +443,11 @@ export function DailyAttendance({
         };
       } else {
         // Other API errors (e.g., OVER_QUERY_LIMIT, INVALID_REQUEST, etc.)
-        throw new Error(`Google Geocoding API Error: ${data.status} - ${data.error_message || "Unknown error"}`);
+        throw new Error(
+          `Google Geocoding API Error: ${data.status} - ${
+            data.error_message || "Unknown error"
+          }`
+        );
       }
     } catch (error) {
       console.error("Error getting address from Google Maps API:", error);
@@ -514,8 +537,8 @@ export function DailyAttendance({
     setIsDialogOpen(true);
   };
 
-   // Haversine formula to calculate distance between two points in meters
-   const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  // Haversine formula to calculate distance between two points in meters
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
@@ -526,27 +549,24 @@ export function DailyAttendance({
       Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    console.log("distance", R * c)
+    console.log("distance", R * c);
     return R * c; // Distance in meters
   };
 
   // isLateCheckIn: True if check-in is after the official start time + grace period.
   const isLateCheckIn = (time) => {
     if (!attendanceSettings.defaultStartTime) return false;
-      
-       const defaultTime = attendanceSettings.defaultStartTime;
-       const convertDefaultTime = parse(defaultTime, "HH:mm", new Date());
-       const actualCheckIn = parse(time, "HH:mm", new Date());
 
-       const diff = differenceInMinutes(actualCheckIn, convertDefaultTime);
-       
-       // a positive diff means check-in is after default time, hence late
-       console.log("diff", diff)
-       return diff > (attendanceSettings.lateCheckInAllowed || 0);
+    const defaultTime = attendanceSettings.defaultStartTime;
+    const convertDefaultTime = parse(defaultTime, "HH:mm", new Date());
+    const actualCheckIn = parse(time, "HH:mm", new Date());
+
+    const diff = differenceInMinutes(actualCheckIn, convertDefaultTime);
+
+    // a positive diff means check-in is after default time, hence late
+    console.log("diff", diff);
+    return diff > (attendanceSettings.lateCheckInAllowed || 0);
   };
-
-
-
 
   // isEarlyCheckIn: True if check-in is before the official start time - grace period.
   const isEarlyCheckIn = (time) => {
@@ -584,16 +604,12 @@ export function DailyAttendance({
       return;
     }
 
-
-   
-    if(!isWfhApproved && !geoLocation){
+    if (!isWfhApproved && !geoLocation) {
       sonnerToast.error("WFH Approved", {
-        description:
-          "You are not allowed to check-in from office.",
+        description: "You are not allowed to check-in from office.",
       });
       return;
     }
-   
 
     setIsLoading(true);
 
@@ -627,17 +643,19 @@ export function DailyAttendance({
       // const isEarly = statusToSave === "early";
 
       try {
-
-         const distance = calculateDistance(locationSettings.latitude, locationSettings.longitude, geoLocation.latitude, geoLocation.longitude);
-         console.log("distance office", locationSettings.radius)
-         if (distance > locationSettings.radius) {
+        const distance = calculateDistance(
+          locationSettings.latitude,
+          locationSettings.longitude,
+          geoLocation.latitude,
+          geoLocation.longitude
+        );
+        console.log("distance office", locationSettings.radius);
+        if (distance > locationSettings.radius) {
           sonnerToast.error("Check-in Failed", {
-            description:
-              "You are not in the office location.",
+            description: "You are not in the office location.",
           });
           return;
-         }
-
+        }
       } catch (error) {
         sonnerToast.error("Check-in Failed", {
           description:
@@ -646,13 +664,11 @@ export function DailyAttendance({
         return;
       }
 
-
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
 
       const nowTime = format(new Date(), "HH:mm");
       const isLate = isLateCheckIn(nowTime);
-
 
       const isAbsent_ = isAbsent(nowTime);
 
@@ -736,7 +752,7 @@ export function DailyAttendance({
       if (!user || !user.phoneNumber) {
         throw new Error("User not authenticated or phone number not available");
       }
-      
+
       const nowTime = format(new Date(), "HH:mm");
       const phoneNumber = user.phoneNumber.slice(3);
       const dateToday = format(new Date(), "yyyy-MM-dd");
@@ -1196,50 +1212,45 @@ export function DailyAttendance({
   };
 
   return (
-
-    
     <div className="space-y-3 self-center">
-
       {!isYetSet && (
         <div>
-           <p className="text-sm text-muted-foreground font-semibold">
-        Log your daily start and end times.
-      </p>
-      {!isCheckedIn && (
-        <Button
-          onClick={openCheckInDialog}
-          disabled={isLoading || isCheckedOut}
-          className="w-full sm:w-auto bg-green-500 hover:bg-green-600"
-        >
-          {isLoading ? (
-            <PageLoader className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            "Check-in"
+          <p className="text-sm text-muted-foreground font-semibold">
+            Log your daily start and end times.
+          </p>
+          {!isCheckedIn && (
+            <Button
+              onClick={openCheckInDialog}
+              disabled={isLoading || isCheckedOut}
+              className="w-full sm:w-auto bg-green-500 hover:bg-green-600"
+            >
+              {isLoading ? (
+                <PageLoader className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Check-in"
+              )}
+            </Button>
           )}
-        </Button>
-      )}
-      {isCheckedIn && !isCheckedOut && (
-        <Button
-          onClick={openCheckOutDialog}
-          disabled={isLoading}
-          className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600"
-        >
-          {isLoading ? (
-            <PageLoader className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            "Check-out"
+          {isCheckedIn && !isCheckedOut && (
+            <Button
+              onClick={openCheckOutDialog}
+              disabled={isLoading}
+              className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600"
+            >
+              {isLoading ? (
+                <PageLoader className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Check-out"
+              )}
+            </Button>
           )}
-        </Button>
+          {isCheckedIn && isCheckedOut && (
+            <Button disabled className="w-full sm:w-auto bg-slate-400">
+              Attendance Marked for Today
+            </Button>
+          )}
+        </div>
       )}
-      {isCheckedIn && isCheckedOut && (
-        <Button disabled className="w-full sm:w-auto bg-slate-400">
-          Attendance Marked for Today
-        </Button>
-      )}
-
-          </div>
-      )}
-      
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
@@ -1278,15 +1289,13 @@ export function DailyAttendance({
 
             {/* Enhanced Map Location Tracker */}
 
-
             {!isWfhApproved && (
-               <MapLocationTracker
-               currentLocation={geoLocation}
-               onLocationChange={handleLocationChange}
-               isLoading={isLocationLoading}
-             />
+              <MapLocationTracker
+                currentLocation={geoLocation}
+                onLocationChange={handleLocationChange}
+                isLoading={isLocationLoading}
+              />
             )}
-           
           </div>
 
           <DialogFooter className="sm:justify-start">

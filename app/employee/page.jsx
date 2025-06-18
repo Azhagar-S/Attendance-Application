@@ -127,8 +127,8 @@ export default function MemberPage() {
   const [hours, setHours] = useState(false);
   const [formData, setFormData] = useState({
     requestType: "temporary",
-    startDate: "",
-    endDate: "",
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: new Date().toISOString().split("T")[0],
     reason: "",
     workLocation: "",
     emergencyContact: "",
@@ -143,6 +143,17 @@ export default function MemberPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isWFhEnabled, setIsWFhEnabled] = useState(false);
+
+  // Auto-update end date for permanent requests
+  useEffect(() => {
+    if (formData.requestType === "permanent" && formData.startDate) {
+      setFormData(prev => ({
+        ...prev,
+        endDate: formData.startDate
+      }));
+      setEndDate(startDate);
+    }
+  }, [formData.requestType, formData.startDate]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -421,7 +432,12 @@ export default function MemberPage() {
     const newErrors = {};
 
     if (!formData.startDate) newErrors.startDate = "Start date is required";
-    if (!formData.endDate) newErrors.endDate = "End date is required";
+    
+    // Only require end date for non-permanent requests
+    if (formData.requestType !== "permanent" && !formData.endDate) {
+      newErrors.endDate = "End date is required";
+    }
+    
     if (!formData.reason.trim()) newErrors.reason = "Reason is required";
     if (!formData.workLocation.trim())
       newErrors.workLocation = "Work location is required";
@@ -430,9 +446,23 @@ export default function MemberPage() {
     if (!formData.emergencyPhone.trim())
       newErrors.emergencyPhone = "Emergency phone is required";
 
-    if (formData.startDate && formData.endDate) {
+    // Date validation
+    if (formData.startDate) {
+      const start = new Date(formData.startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+      
+      // Check if start date is in the past
+      if (start < today) {
+        newErrors.startDate = "Start date cannot be in the past";
+      }
+    }
+
+    // Only validate end date if both dates exist and it's not a permanent request
+    if (formData.startDate && formData.endDate && formData.requestType !== "permanent") {
       const start = new Date(formData.startDate);
       const end = new Date(formData.endDate);
+      
       if (start > end) {
         newErrors.endDate = "End date must be after start date";
       }
@@ -447,6 +477,8 @@ export default function MemberPage() {
   //handle dates
 
   const handleDateChange = (obj) => {
+    if (!obj.date) return;
+    
     const formattedDate = obj.date.toISOString().split('T')[0];
     
     if(obj.duration === "start"){
@@ -455,18 +487,36 @@ export default function MemberPage() {
         ...prev,
         startDate: formattedDate
       }));
+      
+      // Clear start date error when user selects a date
+      if (errors.startDate) {
+        setErrors(prev => ({
+          ...prev,
+          startDate: ""
+        }));
+      }
     } else {
       setEndDate(obj.date);
       setFormData(prev => ({
         ...prev,
         endDate: formattedDate
       }));
+      
+      // Clear end date error when user selects a date
+      if (errors.endDate) {
+        setErrors(prev => ({
+          ...prev,
+          endDate: ""
+        }));
+      }
     }
   };
 
   const handleSubmit = async () => {
-
-
+    console.log("Form data before validation:", formData);
+    console.log("Start date:", startDate);
+    console.log("End date:", endDate);
+    console.log("Is permanent:", isPermanent);
 
     if (!validateForm()) {
         sonnerToast.error("Validation Failed", {
@@ -505,8 +555,8 @@ export default function MemberPage() {
   const resetForm = () => {
     setFormData({
       requestType: "temporary",
-      startDate: "",
-      endDate: "",
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: new Date().toISOString().split("T")[0],
       reason: "",
       workLocation: "",
       emergencyContact: "",
@@ -515,8 +565,9 @@ export default function MemberPage() {
       internetSpeed: "",
       workingHours: "regular",
       customHours: "",
-      additionalNotes: "",
     });
+    setStartDate(new Date());
+    setEndDate(new Date());
     setErrors({});
   };
 
@@ -669,8 +720,13 @@ export default function MemberPage() {
                               date={startDate}
                               value={startDate}
                               setDate={(date) => handleDateChange({duration:"start" , date})}
-                              className="w-full"
+                              className={`w-full ${errors.startDate ? "border-red-500" : ""}`}
                             />
+                            {errors.startDate && (
+                              <p className="text-sm text-red-500">
+                                {errors.startDate}
+                              </p>
+                            )}
                           </div>
 
                           {!isPermanent && (
@@ -681,8 +737,13 @@ export default function MemberPage() {
                               date={endDate}
                               value={endDate}
                               setDate={(date) => handleDateChange({duration:"end" , date})}
-                              className="w-full"
+                              className={`w-full ${errors.endDate ? "border-red-500" : ""}`}
                             />
+                            {errors.endDate && (
+                              <p className="text-sm text-red-500">
+                                {errors.endDate}
+                              </p>
+                            )}
                           </div>
                           )}
                         </div>
@@ -1044,19 +1105,19 @@ export default function MemberPage() {
 
       {/* Tabs for History */}
       <Tabs defaultValue="attendanceHistory" className="w-full">
-        <TabsList className={`grid w-full grid-cols-3 sm:grid-cols-3  gap-2 ${!isWFhEnabled ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          <TabsTrigger value="attendanceHistory" className="flex items-center justify-center">
+        <TabsList className={`grid w-full grid-cols-3 h-20 md:h-10 border  sm:grid-cols-3  gap-2 ${!isWFhEnabled ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <TabsTrigger value="attendanceHistory" className="flex items-center justify-center flex-col sm:flex-row">
             <CalendarDays className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Attendance History</span>
             <span className="sm:hidden">Attendance</span>
           </TabsTrigger>
-          <TabsTrigger value="leaveHistory" className="flex items-center justify-center">
+          <TabsTrigger value="leaveHistory" className="flex items-center justify-center flex-col sm:flex-row">
             <Briefcase className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Leave Records</span>
             <span className="sm:hidden">Leaves</span>
           </TabsTrigger>
           {!isWFhEnabled && (
-            <TabsTrigger value="wfhHistory" className="flex items-center justify-center">
+            <TabsTrigger value="wfhHistory" className="flex items-center justify-center flex-col sm:flex-row">
               <Home className="mr-2 h-4 w-4" />
               <span className="hidden sm:inline">WFH History</span>
               <span className="sm:hidden">WFH</span>
