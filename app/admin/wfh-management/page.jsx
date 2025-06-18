@@ -249,25 +249,26 @@ const AdminWFHRequests = () => {
 
   return (
     <div className="min-h-screen bg-gray-50/50">
-      <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+              <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-gray-900">
                 Work From Home Requests
               </h1>
-              <p className="text-lg text-gray-600 mt-2">
+              <p className="text-base sm:text-lg text-gray-600 mt-2">
                 Manage and review employee WFH requests efficiently
               </p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={exportToCSV}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm text-sm sm:text-base"
               >
                 <Download size={16} />
-                Export CSV
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">Export</span>
               </button>
             </div>
           </div>
@@ -275,8 +276,8 @@ const AdminWFHRequests = () => {
 
         {/* Filters and Search */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col gap-4">
               <div className="flex-1">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -285,7 +286,7 @@ const AdminWFHRequests = () => {
                     placeholder="Search by employee name, email, or department..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50/50"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50/50 text-sm sm:text-base"
                   />
                 </div>
               </div>
@@ -294,7 +295,7 @@ const AdminWFHRequests = () => {
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[160px]"
+                  className="flex-1 sm:flex-none px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm sm:text-base"
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
@@ -307,82 +308,83 @@ const AdminWFHRequests = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{requests.length}</p>
-                  <p className="text-sm text-gray-500 mt-1">All time submissions</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Total Requests</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{requests.length}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">All time submissions</p>
                 </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <FileText className="h-6 w-6 text-blue-600" />
+                <div className="p-2 sm:p-3 bg-blue-50 rounded-lg">
+                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                 </div>
               </div>
             </div>
           </div>
           
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-3xl font-bold text-yellow-600 mt-2">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Pending</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-yellow-600 mt-1 sm:mt-2">
                     {requests.filter(r => r.status === 'pending').length}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">Awaiting review</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">Awaiting review</p>
                 </div>
-                <div className="p-3 bg-yellow-50 rounded-lg">
-                  <Clock className="h-6 w-6 text-yellow-600" />
+                <div className="p-2 sm:p-3 bg-yellow-50 rounded-lg">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
                 </div>
               </div>
             </div>
           </div>
           
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Approved</p>
-                  <p className="text-3xl font-bold text-green-600 mt-2">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Approved</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1 sm:mt-2">
                     {requests.filter(r => r.status === 'approved').length}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">Successfully approved</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">Successfully approved</p>
                 </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+                <div className="p-2 sm:p-3 bg-green-50 rounded-lg">
+                  <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                 </div>
               </div>
             </div>
           </div>
           
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Rejected</p>
-                  <p className="text-3xl font-bold text-red-600 mt-2">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Rejected</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-red-600 mt-1 sm:mt-2">
                     {requests.filter(r => r.status === 'rejected').length}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">Not approved</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">Not approved</p>
                 </div>
-                <div className="p-3 bg-red-50 rounded-lg">
-                  <XCircle className="h-6 w-6 text-red-600" />
+                <div className="p-2 sm:p-3 bg-red-50 rounded-lg">
+                  <XCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Requests Table */}
+        {/* Requests Table - Mobile Responsive */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
             <h3 className="text-lg font-semibold text-gray-900">Recent Requests</h3>
             <p className="text-sm text-gray-600 mt-1">A list of all work from home requests and their current status</p>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -483,42 +485,122 @@ const AdminWFHRequests = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Cards */}
+          <div className="lg:hidden">
+            <div className="divide-y divide-gray-200">
+              {filteredRequests.map((request) => (
+                <div key={request.id} className="p-4 hover:bg-gray-50/50 transition-colors">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                        {getInitials(request.employeeName)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">{request.employeeName}</div>
+                        <div className="text-sm text-gray-600 flex items-center gap-1 mt-1">
+                          <Mail className="h-3 w-3" />
+                          {request.employeeEmail}
+                        </div>
+                      </div>
+                    </div>
+                    <StatusBadge status={request.status} />
+                  </div>
+                  
+                  <div className="space-y-2 mb-3">
+                    <div className="font-medium text-gray-900 capitalize text-sm">
+                      {request.requestType} WFH
+                    </div>
+                    <div className="text-sm text-gray-600 line-clamp-2">
+                      {request.reason}
+                    </div>
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {request.workLocation.split(',')[0]}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1 mb-3">
+                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(request.startDate)} - {formatDate(request.endDate)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Submitted: {formatDate(request.submittedAt)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedRequest(request);
+                        setShowModal(true);
+                      }}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="View Details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    
+                    {request.status?.toLowerCase() === 'pending' && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(request.id)}
+                          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Approve"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleReject(request.id)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Reject"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Request Details Modal */}
+        {/* Request Details Modal - Mobile Responsive */}
         {showModal && selectedRequest && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+              <div className="p-4 sm:p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-900">WFH Request Details</h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">WFH Request Details</h3>
+                    <p className="text-sm text-gray-600 mt-1 truncate">
                       Complete information for {selectedRequest.employeeName}'s work from home request
                     </p>
                   </div>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors ml-2"
                   >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
               </div>
               
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(95vh-140px)] sm:max-h-[calc(90vh-140px)]">
                 <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Employee Information</h4>
                       <div className="flex items-center space-x-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
                           {getInitials(selectedRequest.employeeName)}
                         </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">{selectedRequest.employeeName}</div>
-                          <div className="text-sm text-gray-600">{selectedRequest.employeeEmail}</div>
-                          <div className="text-xs text-gray-500">{selectedRequest.department}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-gray-900 truncate">{selectedRequest.employeeName}</div>
+                          <div className="text-sm text-gray-600 truncate">{selectedRequest.employeeEmail}</div>
+                          <div className="text-xs text-gray-500 truncate">{selectedRequest.department}</div>
                         </div>
                       </div>
                     </div>
@@ -531,22 +613,22 @@ const AdminWFHRequests = () => {
                   <div className="border-t border-gray-200 pt-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Reason for Request</h4>
-                      <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{selectedRequest.reason}</p>
+                      <p className="text-gray-700 bg-gray-50 p-4 rounded-lg text-sm">{selectedRequest.reason}</p>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Work Location</h4>
-                      <p className="text-gray-700 flex items-start gap-2">
-                        <MapPin className="h-4 w-4 mt-0.5 text-gray-500" />
-                        {selectedRequest.workLocation}
+                      <p className="text-gray-700 flex items-start gap-2 text-sm">
+                        <MapPin className="h-4 w-4 mt-0.5 text-gray-500 flex-shrink-0" />
+                        <span className="break-words">{selectedRequest.workLocation}</span>
                       </p>
                     </div>
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Emergency Contact</h4>
                       <div className="text-gray-700">
-                        <p className="font-medium">{selectedRequest.emergencyContact}</p>
+                        <p className="font-medium text-sm">{selectedRequest.emergencyContact}</p>
                         <p className="text-sm text-gray-600 flex items-center gap-1">
                           <Phone className="h-3 w-3" />
                           {selectedRequest.emergencyPhone}
@@ -555,55 +637,57 @@ const AdminWFHRequests = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Equipment Needed</h4>
-                      <p className="text-gray-700">{selectedRequest.equipmentNeeded}</p>
+                      <p className="text-gray-700 text-sm">{selectedRequest.equipmentNeeded}</p>
                     </div>
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Internet Speed</h4>
-                      <p className="text-gray-700">{selectedRequest.internetSpeed}</p>
+                      <p className="text-gray-700 text-sm">{selectedRequest.internetSpeed}</p>
                     </div>
                   </div>
                   
                   {selectedRequest.additionalNotes && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Additional Notes</h4>
-                      <p className="text-gray-700 bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">{selectedRequest.additionalNotes}</p>
+                      <p className="text-gray-700 bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400 text-sm">{selectedRequest.additionalNotes}</p>
                     </div>
                   )}
                   
                   {selectedRequest.adminNotes && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Admin Notes</h4>
-                      <p className="text-gray-700 bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400">{selectedRequest.adminNotes}</p>
+                      <p className="text-gray-700 bg-gray-100 p-4 rounded-lg border-l-4 border-gray-400 text-sm">{selectedRequest.adminNotes}</p>
                     </div>
                   )}
                 </div>
               </div>
               
               {selectedRequest.status === 'pending' && (
-                <div className="p-6 border-t border-gray-200 bg-gray-50">
-                  <div className="flex gap-3">
+                <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button 
                       onClick={() => {
                         handleApprove(selectedRequest.id);
                         setShowModal(false);
                       }}
-                      className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 px-4 sm:px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                       <CheckCircle className="h-4 w-4" />
-                      Approve Request
+                      <span className="hidden sm:inline">Approve Request</span>
+                      <span className="sm:hidden">Approve</span>
                     </button>
                     <button 
                       onClick={() => {
                         handleReject(selectedRequest.id);
                         setShowModal(false);
                       }}
-                      className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 px-4 sm:px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                       <XCircle className="h-4 w-4" />
-                      Reject Request
+                      <span className="hidden sm:inline">Reject Request</span>
+                      <span className="sm:hidden">Reject</span>
                     </button>
                   </div>
                 </div>
